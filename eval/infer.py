@@ -108,13 +108,13 @@ def read_cut_status(text_dir):
         return {r["doc_id"]: r["status"] for r in csv.DictReader(f) if r.get("doc_id")}
 
 
-def fewshot_ids_in_file():
-    return json.loads(FEWSHOT_JSON.read_text(encoding="utf-8")).get("fewshot_doc_ids", [])
+def fewshot_ids_in_file(path=FEWSHOT_JSON):
+    return json.loads(Path(path).read_text(encoding="utf-8")).get("fewshot_doc_ids", [])
 
 
-def load_fewshot(splits, text_dir, label_dir):
-    """eval/fewshot.json의 train 문서 2건 → (ids, [(텍스트, 정답 dict), ...])"""
-    ids = fewshot_ids_in_file()
+def load_fewshot(splits, text_dir, label_dir, path=FEWSHOT_JSON):
+    """few-shot 예시 파일(기본 eval/fewshot.json)의 train 문서 2건 → (ids, [(텍스트, 정답 dict), ...])"""
+    ids = fewshot_ids_in_file(path)
     if len(ids) != 2:
         sys.exit(f"eval/fewshot.json의 fewshot_doc_ids는 2건이어야 함(현재 {ids}). train에서 골라 PM 승인 후 고정")
     for doc_id in ids:
@@ -340,6 +340,8 @@ def check_args(args):
         require_sealed("text", args.text_dir)  # test 담당이 넘긴 텍스트가 봉인(report/test_manifest.csv)과 같아야 함
         if args.overwrite or args.limit:
             sys.exit("[거부] test에는 --overwrite · --limit을 쓰지 않는다(비교군마다 전체 문서 1회)")
+        if Path(args.fewshot_json).resolve() != FEWSHOT_JSON.resolve():
+            sys.exit("[거부] test의 base_fs는 고정한 eval/fewshot.json으로만 돈다(--fewshot-json 불가)")
         if args.max_new_tokens is not None and args.max_new_tokens != exp["max_new_tokens"]:
             sys.exit(f"[거부] --max-new-tokens {args.max_new_tokens} ≠ eval/experiment.json의 {exp['max_new_tokens']}. "
                      "test는 고정값으로만 돈다(생략하면 고정값을 씀)")
@@ -384,6 +386,8 @@ def main(argv=None):
     ap.add_argument("--splits", default=SPLITS_CSV, help="분할표(코드 점검 때 test/fixtures/splits.csv)")
     ap.add_argument("--text-dir", help="1~3항 텍스트 폴더(기본 data/text, test는 저장소 밖 폴더 필수)")
     ap.add_argument("--label-dir", default=LABEL_DIR, help="few-shot 예시 정답 폴더(base_fs만 씀)")
+    ap.add_argument("--fewshot-json", default=FEWSHOT_JSON,
+                    help="base_fs 예시 목록 파일(기본 eval/fewshot.json). 교차검증(eval/cv.py)이 fold마다 따로 넘긴다")
     ap.add_argument("--out-root", default=OUTPUT_ROOT, help="출력 루트(기본 outputs/, test는 저장소 밖 폴더 필수)")
     args = ap.parse_args(argv)
     check_args(args)
@@ -398,7 +402,7 @@ def main(argv=None):
         sys.exit(f"{args.split} 문서가 0건({args.splits})")
     cut = read_cut_status(text_dir)
     fewshot_ids, fewshot = (load_fewshot(read_splits(args.splits), TEXT_DIR if args.split == "test" else text_dir,
-                                         args.label_dir)
+                                         args.label_dir, args.fewshot_json)
                             if args.condition == "base_fs" else ([], []))
     base_name, revision = base_model_spec(args.base, args.revision)
     if not revision:

@@ -1,0 +1,90 @@
+"""
+교차검증 하네스(eval/cv.py) 회귀 테스트 — fold 나누기 · few-shot 예시 고르기 · 짝 비교 목록. GPU · 모델 없이 돈다.
+
+  python3 test/test_cv.py -v
+"""
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from eval import cv  # noqa: E402
+
+
+def docs_of(spec):
+    """{doc_id: (form, group)} → splits.csv 행 모양"""
+    return {d: {"doc_id": d, "split": "train", "form": f, "split_group": g} for d, (f, g) in spec.items()}
+
+
+class AssignFolds(unittest.TestCase):
+    def test_real_splits_group_disjoint_and_balanced(self):
+        docs = cv.labeled_docs()
+        fold_of = cv.assign_folds(docs, 5, 42)
+        self.assertEqual(set(fold_of), set(docs))
+        by_group = {}
+        for d, f in fold_of.items():  # 같은 제조사 그룹은 한 fold에만
+            by_group.setdefault(docs[d]["split_group"], set()).add(f)
+        self.assertTrue(all(len(v) == 1 for v in by_group.values()))
+        sizes = [list(fold_of.values()).count(i) for i in range(5)]
+        self.assertLessEqual(max(sizes) - min(sizes), 2)
+
+    def test_deterministic(self):
+        docs = cv.labeled_docs()
+        self.assertEqual(cv.assign_folds(docs, 5, 42), cv.assign_folds(docs, 5, 42))
+
+    def test_form_tie_break(self):
+        # A(현행 2) · B(구서식 2)가 먼저 두 fold에 들어간 뒤, C(구서식 2)는 크기가 같으면 구서식이 없는 fold로 간다
+        docs = docs_of({"A1": ("현행", "A"), "A2": ("현행", "A"), "B1": ("구서식", "B"), "B2": ("구서식", "B"),
+                        "C1": ("구서식", "C"), "C2": ("구서식", "C"), "D1": ("현행", "D"), "D2": ("현행", "D")})
+        f = cv.assign_folds(docs, 2, 0)
+        self.assertNotEqual(f["B1"], f["C1"])
+
+
+class PickFewshot(unittest.TestCase):
+    def setUp(self):
+        self.docs = docs_of({"KR-HANIL-002": ("현행", "HANIL"), "KR-KUMHO-002": ("현행", "KUMHO"),
+                             "KR-AAA-001": ("현행", "AAA"), "KR-BBB-001": ("구서식", "BBB"),
+                             "KR-CCC-001": ("현행", "CCC")})
+        self.tmp = tempfile.TemporaryDirectory()
+        fs = Path(self.tmp.name) / "fewshot.json"
+        fs.write_text(json.dumps({"fewshot_doc_ids": ["KR-HANIL-002", "KR-KUMHO-002"]}), encoding="utf-8")
+        self.patch = mock.patch.object(cv, "FEWSHOT_JSON", fs)
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        self.tmp.cleanup()
+
+    def test_keep_fixed_when_in_train(self):
+        fold_of = {"KR-HANIL-002": 1, "KR-KUMHO-002": 1, "KR-AAA-001": 0, "KR-BBB-001": 0, "KR-CCC-001": 1}
+        self.assertEqual(cv.pick_fewshot(self.docs, fold_of, 0), ["KR-HANIL-002", "KR-KUMHO-002"])
+
+    def test_replace_held_out_with_same_form_train_doc(self):
+        # HANIL이 평가 fold(0) → 같은 서식(현행) train 문서 중 doc_id 순 첫 문서. 구서식 BBB는 고르지 않는다
+        fold_of = {"KR-HANIL-002": 0, "KR-KUMHO-002": 1, "KR-AAA-001": 0, "KR-BBB-001": 1, "KR-CCC-001": 1}
+        self.assertEqual(cv.pick_fewshot(self.docs, fold_of, 0), ["KR-CCC-001", "KR-KUMHO-002"])
+
+    def test_no_held_out_doc_as_example(self):
+        docs = cv.labeled_docs()
+        fold_of = cv.assign_folds(docs, 5, 42)
+        for k in range(5):
+            fs = cv.pick_fewshot(docs, fold_of, k)
+            self.assertEqual(len(set(fs)), 2)
+            self.assertTrue(all(fold_of[d] != k for d in fs))
+
+
+class Comparisons(unittest.TestCase):
+    def test_default_pairs(self):
+        exp = {"baseline": "r1", "conditions": {"base_zs": {"type": "base_zs"}, "base_fs": {"type": "base_fs"},
+                                                 "r1": {"type": "qlora"}, "r1_mlp": {"type": "qlora"}}}
+        self.assertEqual(cv.comparisons(exp), [("r1", "base_fs"), ("r1_mlp", "base_fs"), ("r1", "base_zs"),
+                                               ("r1_mlp", "r1")])
+
+
+if __name__ == "__main__":
+    unittest.main()

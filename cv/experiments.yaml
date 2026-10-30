@@ -1,0 +1,13 @@
+# 교차검증 조건 (eval/cv.py). type: base_zs | base_fs | qlora
+# qlora 조건의 train은 pipeline/configs/r1.yaml 위에 덮어쓸 값, build는 pipeline/build_jsonl.py 옵션
+# (기본은 r1 학습셋과 같은 seed 42 · secret 1 · renderers 6). 개선 레시피는 r1에서 한 가지만 바꾼다.
+folds:
+  k: 5
+  seed: 42
+baseline: r1          # 개선 레시피의 짝 비교 기준
+
+conditions:
+  base_zs: {type: base_zs}
+  base_fs: {type: base_fs}
+  r1: {type: qlora}
+  # r1_mlp: {type: qlora, train: {target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]}}

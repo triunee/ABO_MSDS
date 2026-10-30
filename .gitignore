@@ -46,3 +46,10 @@ runs/deploy_smoke/
 runs/**/merged*/
 runs/**/quark_*/
 runs/**/adapter/
+
+# 그룹 교차검증(eval/cv.py) — fold 학습셋 · 어댑터 · 모은 출력 사본 · 실행 로그는 커밋하지 않음
+cv/data/
+cv/runs/**/adapter/
+cv/pooled/
+cv/logs/
+cv/.lock

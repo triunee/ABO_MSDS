@@ -67,11 +67,25 @@ def load_config(path):
     return cfg
 
 
+def splits_path(cfg):
+    """분할표. 설정의 splits로 바꿀 수 있다(교차검증 eval/cv.py가 fold마다 넘김). 기본 data/splits.csv."""
+    return ROOT / cfg["splits"] if cfg.get("splits") else SPLITS_CSV
+
+
 def data_paths(cfg):
     """→ (train JSONL, val JSONL, 증강 보고서). 설정에 경로가 없으면 프롬프트 버전의 기본 위치(v1은 data/ 그대로)."""
     sub = prompt_subdir(cfg["prompt"])
     return tuple(ROOT / cfg[k] if cfg.get(k) else p.parent / sub / p.name
                  for k, p in (("train_jsonl", TRAIN_JSONL), ("val_jsonl", VAL_JSONL), ("build_report", BUILD_REPORT)))
+
+
+def rel_root(path):
+    """기록용 경로: 저장소 안이면 저장소 기준 상대 경로, 밖(교차검증 스모크 등)이면 절대 경로."""
+    path = Path(path).resolve()
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
 
 
 def sha256(path):
@@ -109,9 +123,10 @@ def _labels_sha(label_dir, jsonl_path):
         return None
 
 
-def build_report_summary(train_path, val_path=None, report_path=None):
+def build_report_summary(train_path, val_path=None, report_path=None, splits_csv=None):
     """증강 보고서(build_jsonl.py)에서 r1 설정에 남길 항목(① 배수 ② 유형별 ③ val 섞임 ④ 초과 길이 · 거부 · 해시).
-    보고서가 없으면 None."""
+    보고서가 없으면 None. splits_csv 기본은 SPLITS_CSV."""
+    splits_csv = splits_csv or SPLITS_CSV
     report_path = Path(report_path or BUILD_REPORT)
     if not report_path.exists():
         return None
@@ -124,7 +139,7 @@ def build_report_summary(train_path, val_path=None, report_path=None):
     out = {
         "matches_train_jsonl": jsonl_sha == sha256(train_path),   # False면 보고서와 학습 데이터가 다름
         "labels_unchanged_since_build": _labels_sha(label_dir, train_path) == rep["inputs"].get("train_labels_sha256"),
-        "splits_unchanged_since_build": sha256(SPLITS_CSV) == rep["inputs"].get("splits_sha256"),
+        "splits_unchanged_since_build": sha256(splits_csv) == rep["inputs"].get("splits_sha256"),
     }
     if val_path is not None and Path(val_path).exists():
         v = rep["splits"].get("val") or {}
@@ -144,10 +159,11 @@ def build_report_summary(train_path, val_path=None, report_path=None):
     }
 
 
-def check_data(train_path, val_path):
-    """학습 · 조건 선택 데이터 용도 검사(CLAUDE.md: splits.csv가 유일한 기준)."""
-    refuse_sealed(train_path, val_path)
-    splits = load_splits(SPLITS_CSV)
+def check_data(train_path, val_path, splits_csv=None):
+    """학습 · 조건 선택 데이터 용도 검사(CLAUDE.md: splits.csv가 유일한 기준). splits_csv 기본은 SPLITS_CSV."""
+    splits_csv = splits_csv or SPLITS_CSV
+    refuse_sealed(train_path, val_path, splits_csv)
+    splits = load_splits(splits_csv)
     for path, allowed in ((train_path, {"train"}), (val_path, {"val"})):
         if Path(path).exists() and Path(path).stat().st_size:
             ids = {json.loads(l)["doc_id"] for l in Path(path).read_text(encoding="utf-8").splitlines() if l.strip()}
@@ -172,7 +188,7 @@ def prompt_mismatches(path, version):
     return bad
 
 
-def precheck(train_path, val_path, report_path=None, prompt=DEFAULT_PROMPT):
+def precheck(train_path, val_path, report_path=None, prompt=DEFAULT_PROMPT, splits_csv=None):
     """GPU에 모델을 올리기 전에 멈출 것들 → 증강 보고서 요약(config.json에 남긴다).
     - train · val JSONL이 없거나 비었다
     - 데이터 용도 위반(check_data)
@@ -182,8 +198,8 @@ def precheck(train_path, val_path, report_path=None, prompt=DEFAULT_PROMPT):
     for p in (train_path, val_path):
         if not Path(p).exists() or not Path(p).stat().st_size:
             sys.exit(f"[중단] {p}가 없거나 비었다 — pipeline/build_jsonl.py로 만들 것")
-    check_data(train_path, val_path)
-    aug = build_report_summary(train_path, val_path, report_path)
+    check_data(train_path, val_path, splits_csv)
+    aug = build_report_summary(train_path, val_path, report_path, splits_csv)
     if aug is None:
         sys.exit(f"[중단] 증강 보고서가 없다({report_path or BUILD_REPORT}) — pipeline/build_jsonl.py로 다시 만들 것")
     bad = [k for k in PRECHECK_KEYS if not aug.get(k)]
@@ -324,7 +340,7 @@ def memcheck(cfg):
     import torch
 
     train_path, val_path, report_path = data_paths(cfg)
-    precheck(train_path, val_path, report_path, cfg["prompt"])
+    precheck(train_path, val_path, report_path, cfg["prompt"], splits_path(cfg))
     tok, model = load_model(cfg)
     rows, _ = load_split(tok, train_path, cfg["max_length"])
     val_rows, _ = load_split(tok, val_path, cfg["max_length"])
@@ -373,7 +389,7 @@ def train(cfg, name, run_dir, max_steps=None, smoke=False):
     import torch
 
     train_path, val_path, report_path = data_paths(cfg)
-    aug = precheck(train_path, val_path, report_path, cfg["prompt"])
+    aug = precheck(train_path, val_path, report_path, cfg["prompt"], splits_path(cfg))
     if (run_dir / "adapter").exists():
         sys.exit(f"이미 있음: {run_dir} — 지우거나 이름을 바꿀 것(--name)")
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -392,10 +408,11 @@ def train(cfg, name, run_dir, max_steps=None, smoke=False):
     meta = {
         "name": name, "smoke": smoke, "created_at": datetime.now().isoformat(timespec="seconds"), "git": git_state(),
         "config": cfg, "chat_template_kwargs": CHAT_TEMPLATE_KWARGS, "env": env_info(), "model_commit": model_commit(model),
-        "data": {"train_jsonl": str(train_path.relative_to(ROOT)), "train_jsonl_sha256": sha256(train_path),
-                 "val_jsonl": str(val_path.relative_to(ROOT)),
+        "data": {"train_jsonl": rel_root(train_path), "train_jsonl_sha256": sha256(train_path),
+                 "val_jsonl": rel_root(val_path),
                  "val_jsonl_sha256": sha256(val_path) if val_path.exists() else None,
-                 "splits_sha256": sha256(SPLITS_CSV), "n_train": len(train_rows), "n_val": len(val_rows),
+                 "splits": rel_root(splits_path(cfg)), "splits_sha256": sha256(splits_path(cfg)),
+                 "n_train": len(train_rows), "n_val": len(val_rows),
                  "dropped_over_max_length": {"train": train_dropped, "val": val_dropped}},
         "augmentation": aug,
         "schedule": {"batch": bs, "grad_accum": accum, "effective_batch": bs * accum, "steps_per_epoch": steps_per_epoch,
@@ -454,7 +471,7 @@ def train(cfg, name, run_dir, max_steps=None, smoke=False):
     print(f"완료 → {run_dir}/adapter · {step} step · {elapsed:.0f}s ({elapsed / max(step, 1):.1f}s/step) · "
           f"최대 메모리 {meta['result']['peak_gpu_memory']}")
     if not smoke:
-        rel = (run_dir / "adapter").relative_to(ROOT)
+        rel = rel_root(run_dir / "adapter")
         print(f"다음: python3 eval/infer.py --condition qlora_{name} --split val --adapter {rel}")
 
 
@@ -468,6 +485,7 @@ def main():
     ap.add_argument("--name", help="실행 이름(기본: 설정 파일 이름, 예 r1)")
     ap.add_argument("--memcheck", action="store_true", help="가장 긴 예시로 1 step만 돌려 최대 메모리 확인")
     ap.add_argument("--smoke", type=int, metavar="STEPS", help=f"스모크: STEPS step만, {SMOKE_ROOT}/ 아래에 기록(runs/ 아님)")
+    ap.add_argument("--run-dir", help="기록 폴더(기본 runs/{MMDD}_{이름}). 교차검증(eval/cv.py)이 fold마다 넘긴다")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -478,10 +496,11 @@ def main():
         name = args.name or "smoke"
         if name in RESERVED_NAMES:
             sys.exit(f"스모크에는 {sorted(RESERVED_NAMES)} 이름을 쓰지 않는다")
-        train(cfg, name, SMOKE_ROOT / f"{datetime.now():%m%d_%H%M}_{name}", max_steps=args.smoke, smoke=True)
+        run_dir = Path(args.run_dir).resolve() if args.run_dir else SMOKE_ROOT / f"{datetime.now():%m%d_%H%M}_{name}"
+        train(cfg, name, run_dir, max_steps=args.smoke, smoke=True)
         return
     name = args.name or Path(args.config).stem
-    train(cfg, name, ROOT / "runs" / f"{datetime.now():%m%d}_{name}")
+    train(cfg, name, Path(args.run_dir).resolve() if args.run_dir else ROOT / "runs" / f"{datetime.now():%m%d}_{name}")
 
 
 if __name__ == "__main__":
