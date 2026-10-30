@@ -1,0 +1,9 @@
+{"product_name":{"value":"레미픽스 에폭시(친환경, 주제)","source_status":"기재"},
+"recommended_use":{"value":"도자기질, 자기질, 석기질, 폴리싱 타일용 접착제","source_status":"기재"},
+"use_restrictions":{"value":"다른 분야에 사용시에는 제조자의 엔지니어링/기술부서(T/S)의 확인을 받을 것.","source_status":"기재"},
+"supplier":{"company_name":"에이켐텍","address":"서울특별시 서초구 서초동 1587 한일시멘트빌딩","emergency_phone":"02-531-7000"},
+"ingredients":[{"chemical_name":"다이페닐올 프로페인 다이실사이딜 에터; 비스페놀A다이글리시딜에터;다이메틸메테인다이클리시딜에터;2,2-비스(4-(2,3-에폭시프로폭시)페닐)프로페인;2,2‘-[1-메틸에틸리텐)비스(4,1-페닐렌옥시메틸렌)]비스옥시레인;4,4-비스비스페놀 A 다이글리시딜 에테르 (2,3-에폭시프로폭시)다이페닐다이메틸 1675-54-3 30~40","cas_number":null,"ke_number":null,"content":"30~40","is_substitute_data":false},{"chemical_name":"이산화티타늄","cas_number":"13463-67-7","ke_number":null,"content":"0~3","is_substitute_data":false},{"chemical_name":"Calciu Carbonate, natural 석회석","cas_number":"1317-65-3","ke_number":null,"content":"60~70","is_substitute_data":false}],
+"ghs_classification":[{"hazard_class":"구분2","category":null},{"hazard_class":"구분2","category":null},{"hazard_class":"구분1","category":null},{"hazard_class":"구분2","category":null},{"hazard_class":"구분3","category":"구분 3"},{"hazard_class":"구분2","category":null}],
+"signal_word":{"value":"경고","source_status":"기재"},
+"hazard_statements":[{"code":"315","text":"피부에 자극을 일으킴"},{"code":"317","text":"알레르기성 피부 반응을 일으킬 수 있음"},{"code":"319","text":"눈에 심한 자극을 일으킴"},{"code":"351","text":"암을 일으킬 것으로 의심됨"}],
+"list_status":{"ingredients":"기재","ghs_classification":"기재","hazard_statements":"기재"}}

@@ -1,0 +1,7 @@
+{"product_name":{"value":"카본블랙","source_status":"기재"},
+"recommended_use":{"value":"고무, 플라스틱, 잉크 및 도료, 배터리, 전력 케이블 등의 첨가제","source_status":"기재"},
+"use_restrictions":{"value":"자료 없음","source_status":"기재"},
+"supplier":{"company_name":"OCI주식회사","address":"경북 포항시 남구 청림서길 54","emergency_phone":"054-290-8511"},
+"ingredients":[{"chemical_name":"카본블랙","cas_number":"1333-86-4","ke_number":null,"content":"100 %","is_substitute_data":false}],
+"ghs_classification":[],"signal_word":{"value":null,"source_status":"해당없음"},
+"hazard_statements":[],"list_status":{"ingredients":"기재","ghs_classification":"해당없음","hazard_statements":"해당없음"}}

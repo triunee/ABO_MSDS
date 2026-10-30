@@ -53,3 +53,4 @@ cv/runs/**/adapter/
 cv/pooled/
 cv/logs/
 cv/.lock
+cv/*.out

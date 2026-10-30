@@ -1,0 +1,9 @@
+{"product_name":{"value":"가성소다, 수산화나트륨(SODIUM HYDROXIDE)","source_status":"기재"},
+"recommended_use":{"value":"펄프, 종이, 섬유, 표백, 비누원료의 제조, 향료, 섬유정제, 조미료 제조, 의약품제조","source_status":"기재"},
+"use_restrictions":{"value":"자료없음","source_status":"기재"},
+"supplier":{"company_name":"OCI㈜","address":"군산공장","emergency_phone":"063-460-6304"},
+"ingredients":[{"chemical_name":"수산화나트륨","cas_number":"1310-73-2","ke_number":null,"content":"24 ~ 26","is_substitute_data":false},{"chemical_name":"물","cas_number":"7732-18-5","ke_number":null,"content":"74 ~ 76","is_substitute_data":false}],
+"ghs_classification":[{"hazard_class":"구분1","category":null}],
+"signal_word":{"value":"위험","source_status":"기재"},
+"hazard_statements":[{"code":"H290","text":"금속을 부식시킬 수 있음"},{"code":"H302","text":"삼키면 유해함"},{"code":"H314","text":"피부에 심한 화상과 눈 손상을 일으킴"},{"code":"H318","text":"눈에 심한 손상을 일으킴"}],
+"list_status":{"ingredients":"기재","ghs_classification":"기재","hazard_statements":"기재"}}
