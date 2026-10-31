@@ -86,5 +86,33 @@ class Comparisons(unittest.TestCase):
                                                ("r1_mlp", "r1")])
 
 
+class Consistency(unittest.TestCase):
+    def test_sign_test_p(self):
+        self.assertEqual(cv.sign_test_p(0, 0), 1.0)
+        self.assertAlmostEqual(cv.sign_test_p(10, 3), 2 * (1 + 13 + 78 + 286) / 2 ** 13)
+        self.assertEqual(cv.sign_test_p(3, 10), cv.sign_test_p(10, 3))
+        self.assertEqual(cv.sign_test_p(5, 5), 1.0)
+
+    def test_fold_and_group_tally(self):
+        # 그룹 G는 문서 2건이 1승 1패 → 그룹 단위로는 무승부
+        a = {"x1": {"m": 1}, "x2": {"m": 0}, "y1": {"m": 1}, "z1": {"m": 1}}
+        b = {"x1": {"m": 0}, "x2": {"m": 1}, "y1": {"m": 0}, "z1": {"m": 1}}
+        c = cv.consistency(a, b, list(a), {"x1": 0, "x2": 0, "y1": 1, "z1": 1},
+                           {"x1": "G", "x2": "G", "y1": "H", "z1": "I"}, metric="m")
+        self.assertEqual(c["folds"], {0: (0.0, 2), 1: (0.5, 2)})
+        self.assertEqual(c["doc"][:3], (2, 1, 1))
+        self.assertEqual(c["group"][:3], (1, 0, 2))
+
+
+class RuleFieldPath(unittest.TestCase):
+    def test_top_field(self):
+        from eval.cv_rules import top_field
+        self.assertEqual(top_field("$.ghs_classification.2.category"), "ghs_classification")
+        self.assertEqual(top_field("$.hazard_statements[].text"), "hazard_statements")
+        self.assertEqual(top_field("$.list_status.ingredients"), "ingredients")
+        self.assertEqual(top_field("$"), "")
+        self.assertEqual(top_field(None), "")
+
+
 if __name__ == "__main__":
     unittest.main()

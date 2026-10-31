@@ -27,6 +27,7 @@ import csv
 import fcntl
 import hashlib
 import json
+import math
 import random
 import shutil
 import subprocess
@@ -419,6 +420,29 @@ def comparisons(exp):
     return pairs
 
 
+def sign_test_p(win, loss):
+    """양측 정확 부호 검정(무승부 제외) p값. 승 · 패가 모두 0이면 1."""
+    n = win + loss
+    if n == 0:
+        return 1.0
+    return min(1.0, 2 * sum(math.comb(n, i) for i in range(min(win, loss) + 1)) / 2 ** n)
+
+
+def consistency(out_a, out_b, ids, fold_of, groups, metric="doc_exact_ext"):
+    """주지표 일관성: fold별 평균 차이, 문서 · 그룹 단위 승 · 패와 부호 검정. 그룹 단위는 그룹 안 차이의 합의 부호."""
+    diffs = {d: out_a[d][metric] - out_b[d][metric] for d in ids}
+    by_fold, by_group = defaultdict(list), defaultdict(list)
+    for d, x in diffs.items():
+        by_fold[fold_of[d]].append(x)
+        by_group[groups[d]].append(x)
+    g = [sum(v) for v in by_group.values()]
+    w, lo = sum(x > 0 for x in diffs.values()), sum(x < 0 for x in diffs.values())
+    gw, gl = sum(x > 0 for x in g), sum(x < 0 for x in g)
+    return {"folds": {k: (sum(v) / len(v), len(v)) for k, v in sorted(by_fold.items())},
+            "doc": (w, lo, len(diffs) - w - lo, sign_test_p(w, lo)),
+            "group": (gw, gl, len(g) - gw - gl, sign_test_p(gw, gl))}
+
+
 def fmt(v, metric=""):
     if v is None:
         return "—"
@@ -469,13 +493,14 @@ def cmd_report(args):
                   for m, v in ms.items()]
     write_csv(root / "scores.csv", score_rows, ["condition", "subset", "metric", "value"])
 
-    paired_rows = []
+    paired_rows, consist = [], {}
     for a, b in comparisons(exp):
         if a not in scored or b not in scored:
             continue
         common = sorted(set(scored[a]["docs"]) & set(scored[b]["docs"]))
         out_a = {d: doc_outcomes(scored[a]["details"][d]) for d in common}
         out_b = {d: doc_outcomes(scored[b]["details"][d]) for d in common}
+        consist[(a, b)] = consistency(out_a, out_b, common, fold_of, groups)
         subsets = [("all", common)] + [(f, [d for d in common if docs[d]["form"] == f])
                                        for f in sorted({docs[d]["form"] for d in common})]
         for subset, ids in subsets:
@@ -487,10 +512,10 @@ def cmd_report(args):
               ["a", "b", "subset", "metric", "n_docs", "n_groups", "win", "loss", "tie", "mean_diff", "ci_low", "ci_high"])
     (root / "manifest.json").write_text(json.dumps(manifest(root, exp, scored), ensure_ascii=False, indent=2) + "\n",
                                         encoding="utf-8")
-    write_report(root, exp, scored, skipped, paired_rows, docs, args.partial)
+    write_report(root, exp, scored, skipped, paired_rows, docs, args.partial, consist)
 
 
-def write_report(root, exp, scored, skipped, paired_rows, docs, partial):
+def write_report(root, exp, scored, skipped, paired_rows, docs, partial, consist=None):
     names = list(scored)
     n_docs = {n: len(scored[n]["docs"]) for n in names}
     n_groups = len({docs[d]["split_group"] for n in names for d in scored[n]["docs"]})
@@ -526,6 +551,17 @@ def write_report(root, exp, scored, skipped, paired_rows, docs, partial):
                 lines.append(f"| {r['metric']} | {r['n_docs']} · {r['n_groups']} | {r['win']} · {r['loss']} · {r['tie']} "
                              f"| {r['mean_diff']:+.3f} {ci} |")
         lines.append("")
+    if consist:
+        ks = sorted({k for c in consist.values() for k in c["folds"]})
+        lines += ["## 주지표 일관성 (doc_exact_ext, a − b)", "",
+                  "| 비교 | " + " | ".join(f"fold {k}" for k in ks) + " | 문서 승 · 패 · 무 (부호 검정 p) | 그룹 승 · 패 · 무 (p) |",
+                  "|---|" + "---|" * (len(ks) + 2)]
+        for (a, b), c in consist.items():
+            cells = [f"{c['folds'][k][0]:+.2f} ({c['folds'][k][1]})" if k in c["folds"] else "—" for k in ks]
+            (w, lo, t, p), (gw, gl, gt, gp) = c["doc"], c["group"]
+            lines.append(f"| {a} vs {b} | " + " | ".join(cells) + f" | {w} · {lo} · {t} (p={p:.3f}) | {gw} · {gl} · {gt} (p={gp:.3f}) |")
+        lines += ["", "- fold 칸: 그 fold 문서들의 평균 차이(문서 수). 문서 단위 부호 검정은 같은 그룹 문서끼리의 상관을 무시해 "
+                  "낙관적이다. 그룹 단위가 더 보수적이다.", ""]
     lines += ["## 읽을 때 주의", "",
               "- 구서식 문서는 모두 한 제조사 그룹이라 한 fold에 몰린다. 그 fold의 모델은 구서식을 학습에서 보지 못한다.",
               "- 같은 45건으로 여러 레시피를 비교해 고르면 고른 레시피의 점수는 조금 낙관적이다. 비교한 조건 수를 함께 적는다.",
