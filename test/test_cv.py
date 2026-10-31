@@ -114,5 +114,33 @@ class RuleFieldPath(unittest.TestCase):
         self.assertEqual(top_field(None), "")
 
 
+class Perturb(unittest.TestCase):
+    TEXT = ("제품명 : 테스트 페인트 (백색) 대용량 제품 이름이 긴 경우\n급성 독성(흡입: 가스) : 구분 4\n"
+            "○ 신호어\n- 위험\n유해·위험 문구\n작성일 2012-11-30\n물 7732-18-5 265-157-1 36~46\n")
+
+    def test_whitespace_only(self):
+        from eval import cv_perturb
+        for name in cv_perturb.SETS:
+            out = cv_perturb.perturb(name, "KR-X-001", self.TEXT)
+            self.assertEqual(cv_perturb.squash_all(out), cv_perturb.squash_all(self.TEXT))
+            self.assertEqual(out, cv_perturb.perturb(name, "KR-X-001", self.TEXT))  # seed 고정
+
+    def test_value(self):
+        from eval import cv_perturb
+        out = cv_perturb.value(self.TEXT, None)
+        self.assertIn("7732 - 18 - 5", out)
+        self.assertIn("36 ~ 46", out)
+        self.assertIn("- 위 험", out)
+        self.assertIn("2012-11-30", out)       # 날짜 · EC 번호는 그대로
+        self.assertIn("265-157-1", out)
+        self.assertIn("유해·위험 문구", out)    # 신호어 줄이 아닌 '위험'은 그대로
+
+    def test_layout_keeps_paren_colon_and_wraps(self):
+        from eval import cv_perturb
+        out = cv_perturb.layout(self.TEXT, __import__("random").Random(0))
+        self.assertNotIn("(흡입:\n", out)
+        self.assertTrue(all(len(ln) <= cv_perturb.WRAP or " " not in ln for ln in out.split("\n")))
+
+
 if __name__ == "__main__":
     unittest.main()

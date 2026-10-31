@@ -54,3 +54,7 @@ cv/pooled/
 cv/logs/
 cv/.lock
 cv/*.out
+cv/perturb/text/
+cv/perturb/pooled/
+cv/perturb/.lock
+cv/perturb/*.out
