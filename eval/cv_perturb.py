@@ -35,6 +35,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from core.normalize import norm_cas  # noqa: E402
+from core.schema import extract_json  # noqa: E402
 from eval import cv  # noqa: E402
 from eval.paired import bootstrap_ci, compare, doc_outcomes  # noqa: E402
 from eval.score import score_docs  # noqa: E402
@@ -187,6 +189,27 @@ def pool_perturbed(name, cond, ctype, fold_of):
     return dst
 
 
+_CAS_OK = re.compile(r"^\d{2,7}-\d{2}-\d$")
+
+
+def cas_shapes(pred_dir, doc_ids):
+    """출력 cas_number 모양 집계: 형식 맞음(공백 제거 후) · 숫자 덩어리 하나만(잘림) · null · 그 밖"""
+    t = {"형식 맞음": 0, "잘림": 0, "null": 0, "그 밖": 0}
+    for d in doc_ids:
+        o = extract_json((Path(pred_dir) / f"{d}.json").read_text(encoding="utf-8"))[0] or {}
+        for it in o.get("ingredients") or []:
+            c = it.get("cas_number") if isinstance(it, dict) else None
+            if c is None:
+                t["null"] += 1
+            elif _CAS_OK.match(norm_cas(str(c)) or ""):
+                t["형식 맞음"] += 1
+            elif re.fullmatch(r"\d{2,7}", str(c).strip()):
+                t["잘림"] += 1
+            else:
+                t["그 밖"] += 1
+    return " · ".join(f"{k} {v}" for k, v in t.items())
+
+
 def outcomes(pred_dir, doc_ids):
     """원본 텍스트로 채점 → ({doc_id: 0/1 지표}, 전체 지표 행)"""
     accs, _, details = score_docs(doc_ids, {d: "all" for d in doc_ids}, cv.LABEL_DIR, pred_dir, cv.TEXT_DIR, quiet=True)
@@ -198,10 +221,11 @@ def cmd_report(args):
     fold_of = cv.read_folds(cv.CV_ROOT)
     groups = {d: r["split_group"] for d, r in cv.labeled_docs().items()}
     ids = sorted(fold_of)
-    orig = {}
+    orig, orig_dir = {}, {}
     for cond in CONDITIONS:
         ctype = exp["conditions"][cond]["type"]
-        orig[cond] = outcomes(cv.CV_ROOT / "pooled" / cond / cv.INFER_CONDITION[ctype] / "val", ids)
+        orig_dir[cond] = cv.CV_ROOT / "pooled" / cond / cv.INFER_CONDITION[ctype] / "val"
+        orig[cond] = outcomes(orig_dir[cond], ids)
     rows, L = [], ["# 보지 않은 서식 변형 강건성", "",
                    "- 학습 증강 렌더러 6종에 없는 변형으로 평가 문서 45건의 모양만 바꿔 같은 fold 모델로 다시 추론했다. "
                    "정의 · 판정 기준은 eval/cv_perturb.py 머리말(결과 전에 커밋).",
@@ -211,7 +235,7 @@ def cmd_report(args):
     if stats.exists():
         L += ["변형 강도:", "", stats.read_text(encoding="utf-8"), ""]
     for name in SETS:
-        pert, drop = {}, {}
+        pert, drop, shapes = {}, {}, {}
         for cond in CONDITIONS:
             ctype = exp["conditions"][cond]["type"]
             pd = pool_perturbed(name, cond, ctype, fold_of)
@@ -219,6 +243,7 @@ def cmd_report(args):
                 L += [f"## {name}", "", f"- {cond}: 추론이 끝나지 않음", ""]
                 break
             pert[cond] = outcomes(pd, ids)
+            shapes[cond] = (cas_shapes(orig_dir[cond], ids), cas_shapes(pd, ids))
             for m, v in pert[cond][1].items():
                 rows.append({"set": name, "condition": cond, "metric": m, "original": orig[cond][1].get(m), "perturbed": v})
         if len(pert) < len(CONDITIONS):
@@ -243,7 +268,8 @@ def cmd_report(args):
         L += [f"| **r1 하락 − base_fs 하락** | | **{mean:+.3f} [{lo:+.3f}, {hi:+.3f}]** → {verdict} |", ""]
         r1_lost = [d for d in ids if drop["r1"][d] > 0]
         fs_lost = [d for d in ids if drop["base_fs"][d] > 0]
-        L += [f"- 변형으로 새로 틀린 문서 — r1: {' '.join(r1_lost) or '없음'} / base_fs: {' '.join(fs_lost) or '없음'}", ""]
+        L += [f"- 변형으로 새로 틀린 문서 — r1: {' '.join(r1_lost) or '없음'} / base_fs: {' '.join(fs_lost) or '없음'}"]
+        L += [f"- 출력 cas_number 모양({c}) — 원본: {shapes[c][0]} / 변형: {shapes[c][1]}" for c in CONDITIONS] + [""]
     cv.write_csv(PERTURB_ROOT / "scores.csv", rows, ["set", "condition", "metric", "original", "perturbed"])
     (PERTURB_ROOT / "report.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("\n".join(L))
