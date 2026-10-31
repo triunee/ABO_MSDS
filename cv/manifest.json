@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-10-30T22:27:14",
+  "created_at": "2026-10-31T13:25:17",
   "folds_csv_sha256": "2e496da2c110876ae674b57607d856d43b39e228dd9148fb7f7a322b0e71fdca",
   "experiments_sha256": "aceda5fe6cf5ddb87ba4bdf189bfb2fd5cf5997151d95db53bab8eb6095b97be",
   "conditions": {
@@ -14,7 +14,7 @@
     }
   },
   "code_sha256": {
-    "eval/cv.py": "fea2c2b7f308aa82524b45d558d05dcb2688f5153b57f83a87c0fee90fafa685",
+    "eval/cv.py": "9a58be9a6baa0699e75763960245d6c77099713e0b768f434162fa73fde121f5",
     "eval/score.py": "8c8bc6df4c46b69574380db9007a96133043b5bcff87dfe6a4585a5a6ecf05f4",
     "eval/paired.py": "ef2291b306814b64d0b76f8a1255ef046ab4f184ae2c1b49cb4c937b8dedd835",
     "eval/infer.py": "bce10367f50b89618aee954d0e8af5615d99b755d9be14a1ea19422d41aa0942",
@@ -23,7 +23,7 @@
     "core/prompt.py": "f3935291229eaccf0cb484acfe3201fb544f595a32c0f32393e2814a334677b4",
     "core/normalize.py": "74ee81615dedfd09871d5f636a8f2908bfd8e06a1c585ec6a6722e72a95e94a7",
     "src/schema.py": "b77b118b3b9164e8da3ed432976bed3aed53f0482cd8b81d7409a67f8099a51b",
-    "eval/hazard_class_alias.csv": "58c5a63f2578b006abdc02f2858007073285bdc544bf4b6173eeb4cf9b3b11f1"
+    "eval/hazard_class_alias.csv": "a4ed580baac19112b3210e4789796b14539a316978f66da233ebbaefee139aad"
   },
   "runs": {
     "r1/fold0": {
