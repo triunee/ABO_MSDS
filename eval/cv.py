@@ -102,6 +102,8 @@ def load_experiments(path):
     for name, c in exp["conditions"].items():
         if c.get("type") not in INFER_CONDITION:
             sys.exit(f"{path}: {name}의 type은 {sorted(INFER_CONDITION)} 중 하나여야 함")
+        if c.get("replicate_of") and c["replicate_of"] not in exp["conditions"]:
+            sys.exit(f"{path}: {name}의 replicate_of {c['replicate_of']}이 conditions에 없음")
     if exp.get("baseline") not in exp["conditions"]:
         sys.exit(f"{path}: baseline {exp.get('baseline')}이 conditions에 없음")
     return exp
@@ -420,6 +422,16 @@ def comparisons(exp):
     return pairs
 
 
+def condition_count(exp, names):
+    """보고서의 조건 수 문장. seed 반복(replicate_of)은 고를 후보가 아니라 잡음 측정용이라 따로 센다."""
+    reps = [n for n in names if exp["conditions"][n].get("replicate_of")]
+    text = f"{len(names) - len(reps)}개"
+    if reps:
+        text += " (그 밖에 seed 반복 " + " · ".join(f"{n} = {exp['conditions'][n]['replicate_of']}의 반복" for n in reps) + \
+                ". 고를 후보가 아니라 학습 잡음 측정용)"
+    return text
+
+
 def sign_test_p(win, loss):
     """양측 정확 부호 검정(무승부 제외) p값. 승 · 패가 모두 0이면 1."""
     n = win + loss
@@ -565,7 +577,7 @@ def write_report(root, exp, scored, skipped, paired_rows, docs, partial, consist
     lines += ["## 읽을 때 주의", "",
               "- 구서식 문서는 모두 한 제조사 그룹이라 한 fold에 몰린다. 그 fold의 모델은 구서식을 학습에서 보지 못한다.",
               "- 같은 45건으로 여러 레시피를 비교해 고르면 고른 레시피의 점수는 조금 낙관적이다. 비교한 조건 수를 함께 적는다.",
-              f"- 이 보고서의 조건 수: {len(names)}개.", ""]
+              f"- 이 보고서의 조건 수: {condition_count(exp, names)}.", ""]
     (Path(root) / "report.md").write_text("\n".join(lines), encoding="utf-8")
     print(f"→ {rel(Path(root) / 'report.md')} · scores.csv · paired.csv · manifest.json")
     print("\n".join(lines[lines.index("## 전체 지표"):]))

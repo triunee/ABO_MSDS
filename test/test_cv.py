@@ -86,6 +86,15 @@ class Comparisons(unittest.TestCase):
                                                ("r1_mlp", "r1")])
 
 
+class ConditionCount(unittest.TestCase):
+    def test_replicate_counted_apart(self):
+        exp = {"conditions": {"base_fs": {"type": "base_fs"}, "r1": {"type": "qlora"},
+                              "r1_s43": {"type": "qlora", "replicate_of": "r1"}}}
+        self.assertEqual(cv.condition_count(exp, ["base_fs", "r1"]), "2개")
+        text = cv.condition_count(exp, ["base_fs", "r1", "r1_s43"])
+        self.assertTrue(text.startswith("2개 (그 밖에 seed 반복 r1_s43 = r1의 반복"))
+
+
 class Consistency(unittest.TestCase):
     def test_sign_test_p(self):
         self.assertEqual(cv.sign_test_p(0, 0), 1.0)
