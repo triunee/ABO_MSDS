@@ -479,3 +479,163 @@ r1,구서식,gen_time_mean_s,44.3165
 r1,구서식,input_tokens_mean,1648.5
 r1,구서식,output_tokens_mean,579.8333333333334
 r1,구서식,n_hit_max_new_tokens,0
+r1_s43,all,n_docs,45
+r1_s43,all,n_missing_output,0
+r1_s43,all,parse_rate,0.9777777777777777
+r1_s43,all,schema_rate,0.8444444444444444
+r1_s43,all,product_name_acc,0.9333333333333333
+r1_s43,all,signal_word_acc,0.8888888888888888
+r1_s43,all,ghs_status_acc,0.8888888888888888
+r1_s43,all,hazard_status_acc,0.8888888888888888
+r1_s43,all,ghs_p,0.8680555555555556
+r1_s43,all,ghs_r,0.8741258741258742
+r1_s43,all,ghs_f1,0.8710801393728222
+r1_s43,all,hcode_p,1.0
+r1_s43,all,hcode_r,0.9389312977099237
+r1_s43,all,hcode_f1,0.968503937007874
+r1_s43,all,htext_p,0.8181818181818182
+r1_s43,all,htext_r,0.782608695652174
+r1_s43,all,htext_f1,0.8
+r1_s43,all,cas_p,1.0
+r1_s43,all,cas_r,0.9338235294117647
+r1_s43,all,cas_f1,0.9657794676806084
+r1_s43,all,pair_p,1.0
+r1_s43,all,pair_r,0.9338235294117647
+r1_s43,all,pair_f1,0.9657794676806084
+r1_s43,all,nocas_p,0.7142857142857143
+r1_s43,all,nocas_r,0.8333333333333334
+r1_s43,all,nocas_f1,0.7692307692307693
+r1_s43,all,content_acc,1.0
+r1_s43,all,doc_exact_rate,0.5777777777777777
+r1_s43,all,doc_exact_ext_rate,0.5333333333333333
+r1_s43,all,fab_hcode_n,0
+r1_s43,all,fab_hcode_docs,0
+r1_s43,all,fab_ghs_docs,0
+r1_s43,all,fab_cas_n,0
+r1_s43,all,fab_any_docs,0
+r1_s43,all,misplace_ke_n,9
+r1_s43,all,misplace_content_n,0
+r1_s43,all,gen_time_mean_s,39.763755555555555
+r1_s43,all,input_tokens_mean,1757.6
+r1_s43,all,output_tokens_mean,509.0888888888889
+r1_s43,all,n_hit_max_new_tokens,0
+r1_s43,수입품 국문판,n_docs,10
+r1_s43,수입품 국문판,n_missing_output,0
+r1_s43,수입품 국문판,parse_rate,1.0
+r1_s43,수입품 국문판,schema_rate,0.7
+r1_s43,수입품 국문판,product_name_acc,1.0
+r1_s43,수입품 국문판,signal_word_acc,0.9
+r1_s43,수입품 국문판,ghs_status_acc,0.9
+r1_s43,수입품 국문판,hazard_status_acc,0.9
+r1_s43,수입품 국문판,ghs_p,0.6410256410256411
+r1_s43,수입품 국문판,ghs_r,0.6944444444444444
+r1_s43,수입품 국문판,ghs_f1,0.6666666666666666
+r1_s43,수입품 국문판,hcode_p,1.0
+r1_s43,수입품 국문판,hcode_r,1.0
+r1_s43,수입품 국문판,hcode_f1,1.0
+r1_s43,수입품 국문판,htext_p,
+r1_s43,수입품 국문판,htext_r,
+r1_s43,수입품 국문판,htext_f1,
+r1_s43,수입품 국문판,cas_p,1.0
+r1_s43,수입품 국문판,cas_r,0.9512195121951219
+r1_s43,수입품 국문판,cas_f1,0.975
+r1_s43,수입품 국문판,pair_p,1.0
+r1_s43,수입품 국문판,pair_r,0.9512195121951219
+r1_s43,수입품 국문판,pair_f1,0.975
+r1_s43,수입품 국문판,nocas_p,0.0
+r1_s43,수입품 국문판,nocas_r,0.0
+r1_s43,수입품 국문판,nocas_f1,0.0
+r1_s43,수입품 국문판,content_acc,1.0
+r1_s43,수입품 국문판,doc_exact_rate,0.6
+r1_s43,수입품 국문판,doc_exact_ext_rate,0.5
+r1_s43,수입품 국문판,fab_hcode_n,0
+r1_s43,수입품 국문판,fab_hcode_docs,0
+r1_s43,수입품 국문판,fab_ghs_docs,0
+r1_s43,수입품 국문판,fab_cas_n,0
+r1_s43,수입품 국문판,fab_any_docs,0
+r1_s43,수입품 국문판,misplace_ke_n,2
+r1_s43,수입품 국문판,misplace_content_n,0
+r1_s43,수입품 국문판,gen_time_mean_s,47.1203
+r1_s43,수입품 국문판,input_tokens_mean,1956.3
+r1_s43,수입품 국문판,output_tokens_mean,608.9
+r1_s43,수입품 국문판,n_hit_max_new_tokens,0
+r1_s43,현행,n_docs,29
+r1_s43,현행,n_missing_output,0
+r1_s43,현행,parse_rate,0.9655172413793104
+r1_s43,현행,schema_rate,0.8620689655172413
+r1_s43,현행,product_name_acc,0.896551724137931
+r1_s43,현행,signal_word_acc,0.8620689655172413
+r1_s43,현행,ghs_status_acc,0.8620689655172413
+r1_s43,현행,hazard_status_acc,0.8620689655172413
+r1_s43,현행,ghs_p,0.963855421686747
+r1_s43,현행,ghs_r,0.9523809523809523
+r1_s43,현행,ghs_f1,0.9580838323353293
+r1_s43,현행,hcode_p,1.0
+r1_s43,현행,hcode_r,0.9310344827586207
+r1_s43,현행,hcode_f1,0.9642857142857143
+r1_s43,현행,htext_p,0.0
+r1_s43,현행,htext_r,0.0
+r1_s43,현행,htext_f1,0.0
+r1_s43,현행,cas_p,1.0
+r1_s43,현행,cas_r,0.918918918918919
+r1_s43,현행,cas_f1,0.9577464788732394
+r1_s43,현행,pair_p,1.0
+r1_s43,현행,pair_r,0.918918918918919
+r1_s43,현행,pair_f1,0.9577464788732394
+r1_s43,현행,nocas_p,0.9
+r1_s43,현행,nocas_r,0.9
+r1_s43,현행,nocas_f1,0.9
+r1_s43,현행,content_acc,1.0
+r1_s43,현행,doc_exact_rate,0.6206896551724138
+r1_s43,현행,doc_exact_ext_rate,0.5862068965517241
+r1_s43,현행,fab_hcode_n,0
+r1_s43,현행,fab_hcode_docs,0
+r1_s43,현행,fab_ghs_docs,0
+r1_s43,현행,fab_cas_n,0
+r1_s43,현행,fab_any_docs,0
+r1_s43,현행,misplace_ke_n,7
+r1_s43,현행,misplace_content_n,0
+r1_s43,현행,gen_time_mean_s,35.97689655172414
+r1_s43,현행,input_tokens_mean,1711.655172413793
+r1_s43,현행,output_tokens_mean,462.3448275862069
+r1_s43,현행,n_hit_max_new_tokens,0
+r1_s43,구서식,n_docs,6
+r1_s43,구서식,n_missing_output,0
+r1_s43,구서식,parse_rate,1.0
+r1_s43,구서식,schema_rate,1.0
+r1_s43,구서식,product_name_acc,1.0
+r1_s43,구서식,signal_word_acc,1.0
+r1_s43,구서식,ghs_status_acc,1.0
+r1_s43,구서식,hazard_status_acc,1.0
+r1_s43,구서식,ghs_p,0.9090909090909091
+r1_s43,구서식,ghs_r,0.8695652173913043
+r1_s43,구서식,ghs_f1,0.8888888888888888
+r1_s43,구서식,hcode_p,1.0
+r1_s43,구서식,hcode_r,0.75
+r1_s43,구서식,hcode_f1,0.8571428571428571
+r1_s43,구서식,htext_p,0.8181818181818182
+r1_s43,구서식,htext_r,0.8181818181818182
+r1_s43,구서식,htext_f1,0.8181818181818182
+r1_s43,구서식,cas_p,1.0
+r1_s43,구서식,cas_r,0.9523809523809523
+r1_s43,구서식,cas_f1,0.975609756097561
+r1_s43,구서식,pair_p,1.0
+r1_s43,구서식,pair_r,0.9523809523809523
+r1_s43,구서식,pair_f1,0.975609756097561
+r1_s43,구서식,nocas_p,0.75
+r1_s43,구서식,nocas_r,0.75
+r1_s43,구서식,nocas_f1,0.75
+r1_s43,구서식,content_acc,1.0
+r1_s43,구서식,doc_exact_rate,0.3333333333333333
+r1_s43,구서식,doc_exact_ext_rate,0.3333333333333333
+r1_s43,구서식,fab_hcode_n,0
+r1_s43,구서식,fab_hcode_docs,0
+r1_s43,구서식,fab_ghs_docs,0
+r1_s43,구서식,fab_cas_n,0
+r1_s43,구서식,fab_any_docs,0
+r1_s43,구서식,misplace_ke_n,0
+r1_s43,구서식,misplace_content_n,0
+r1_s43,구서식,gen_time_mean_s,45.806
+r1_s43,구서식,input_tokens_mean,1648.5
+r1_s43,구서식,output_tokens_mean,568.6666666666666
+r1_s43,구서식,n_hit_max_new_tokens,0

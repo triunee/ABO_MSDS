@@ -10,4 +10,5 @@ conditions:
   base_zs: {type: base_zs}
   base_fs: {type: base_fs}
   r1: {type: qlora}
+  r1_s43: {type: qlora, train: {seed: 43}}   # 레시피가 아니라 r1의 학습 seed 반복(학습 잡음 측정)
   # r1_mlp: {type: qlora, train: {target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]}}

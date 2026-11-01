@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-31T13:25:17",
+  "created_at": "2026-11-01T14:18:27",
   "folds_csv_sha256": "2e496da2c110876ae674b57607d856d43b39e228dd9148fb7f7a322b0e71fdca",
-  "experiments_sha256": "aceda5fe6cf5ddb87ba4bdf189bfb2fd5cf5997151d95db53bab8eb6095b97be",
+  "experiments_sha256": "5803995b83ddaafb58cc412026faa26ed94e9667d7415c6716d8225ffd662ede",
   "conditions": {
     "base_zs": {
       "type": "base_zs"
@@ -11,6 +11,12 @@
     },
     "r1": {
       "type": "qlora"
+    },
+    "r1_s43": {
+      "type": "qlora",
+      "train": {
+        "seed": 43
+      }
     }
   },
   "code_sha256": {
@@ -119,6 +125,101 @@
           "reserved_gib": 9.67
         },
         "finished_at": "2026-10-30T22:21:04"
+      }
+    },
+    "r1_s43/fold0": {
+      "git": {
+        "commit": "d5e09fb",
+        "dirty": true
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "b078f687efbe77b8edce32180eb3a8e7432ef70946901f5ee9c2da1414be62d5",
+      "n_train": 294,
+      "result": {
+        "optimizer_steps_done": 72,
+        "train_seconds": 4264,
+        "seconds_per_step": 59.2,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 11.41
+        },
+        "finished_at": "2026-10-31T18:27:53"
+      }
+    },
+    "r1_s43/fold1": {
+      "git": {
+        "commit": "d5e09fb",
+        "dirty": true
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "f5b8dc677b6854ac120cb4fe857613c67693377d903393ce383fee98150dac7a",
+      "n_train": 287,
+      "result": {
+        "optimizer_steps_done": 70,
+        "train_seconds": 4049,
+        "seconds_per_step": 57.8,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 7.42
+        },
+        "finished_at": "2026-10-31T20:07:28"
+      }
+    },
+    "r1_s43/fold2": {
+      "git": {
+        "commit": "d5e09fb",
+        "dirty": true
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "08ac8501f65fe73070d59dbef62c3764b679e314090a18a911b2d31d0293c06c",
+      "n_train": 291,
+      "result": {
+        "optimizer_steps_done": 72,
+        "train_seconds": 3836,
+        "seconds_per_step": 53.3,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 7.32
+        },
+        "finished_at": "2026-11-01T01:26:00"
+      }
+    },
+    "r1_s43/fold3": {
+      "git": {
+        "commit": "d5e09fb",
+        "dirty": true
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "ba3ec4a890d1cb6dd5ba9337e606a040e8b343f533d6f968466d3eea80b26f93",
+      "n_train": 287,
+      "result": {
+        "optimizer_steps_done": 70,
+        "train_seconds": 3724,
+        "seconds_per_step": 53.2,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.1,
+          "reserved_gib": 9.62
+        },
+        "finished_at": "2026-11-01T03:15:42"
+      }
+    },
+    "r1_s43/fold4": {
+      "git": {
+        "commit": "d5e09fb",
+        "dirty": true
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "662693db5e72c5727ed145b1360c430616e0c5ac2bc4ba836d483e147b310cf3",
+      "n_train": 293,
+      "result": {
+        "optimizer_steps_done": 72,
+        "train_seconds": 4221,
+        "seconds_per_step": 58.6,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 8.83
+        },
+        "finished_at": "2026-11-01T14:12:26"
       }
     }
   }
