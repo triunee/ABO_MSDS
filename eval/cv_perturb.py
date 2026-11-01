@@ -3,7 +3,7 @@
 교차검증과 같은 fold 모델 · few-shot 예시로 다시 추론하고 원본 대비 하락 폭을 잰다.
 
   python3 eval/cv_perturb.py make                  # 변형 텍스트 생성 + 내용 보존 검사 → cv/perturb/text/
-  python3 eval/cv_perturb.py run [--set layout]    # fold별 추론(base_fs · r1), 이미 있는 출력은 건너뜀
+  python3 eval/cv_perturb.py run [--set layout] [--cond r1_aug,r1_aug_s43]   # fold별 추론(기본 base_fs · r1), 있는 출력은 건너뜀
   python3 eval/cv_perturb.py report                # → cv/perturb/report.md · scores.csv
 
 변형 세트(결과를 보기 전에 고정, 바꾸면 새 세트 이름으로 추가):
@@ -14,13 +14,24 @@
   - CAS 번호 하이픈 양옆에 공백: 67-64-1 → 67 - 64 - 1
   - 함유량 범위 구분자(~ ∼ ～) 양옆에 공백: 10~20 → 10 ~ 20
   - 신호어 줄(같은 줄 또는 다음 줄)의 위험 · 경고를 위 험 · 경 고로
+- glyph — CAS 번호 글자 모양(r1_aug 사전 등록 cv/prereg_r1_aug.md와 함께 학습 전에 추가). CAS마다 seed로 하나:
+  - dash: 두 하이픈을 다른 대시 한 종류로(‐ ‑ ‒ – — −)
+  - fullwidth: 숫자를 전각 숫자로(６７-６４-１)
+  - paren: 앞뒤에 괄호((67-64-1))
 
-- 두 세트 모두 공백 · 줄바꿈만 넣거나 바꾼다. 공백을 모두 지운 문자열이 원본과 같아야 하고(make가 검사),
+- layout · value는 공백 · 줄바꿈만 넣거나 바꾼다. 공백을 모두 지운 문자열이 원본과 같아야 하고(make가 검사),
   그래서 정답 라벨을 그대로 쓴다. 정답 규칙도 이 변형에 영향받지 않는다(CAS · 함유량은 공백 제거, 신호어 변형은 위험 · 경고).
+- glyph는 공백 검사 대신, NFKC · 대시 정규화 · 괄호 제거 뒤 문자열이 원본과 같아야 한다(make가 검사). 정답이 그대로인 근거:
+  CAS 식별자는 같은 번호이고, 출력 스키마(src/schema.py CAS_RE)가 ASCII 하이픈 형식 NNN-NN-N을 요구하며, 채점기
+  norm_cas가 전각 · 대시를 정규화한다. 그래서 전각 숫자를 그대로 옮기면 맞고, 대시 · 괄호를 그대로 옮기면 스키마 오류다.
+  학습 증강(렌더러 6종 + r1_aug 겨냥 4종)은 이 글자들을 만들지 않는다.
 - 평가 문서만 바꾼다. few-shot 예시는 원본 그대로 둔다(fold마다 텍스트 폴더를 따로 만드는 이유).
 - 채점은 원본 텍스트(data/text/)로 한다 — 무근거 생성 검사가 원문 문자열을 찾기 때문.
 - 판정(사전 등록): 주지표 doc_exact_ext의 하락 폭(원본 − 변형)을 조건마다 제조사 그룹 부트스트랩 95% 구간으로 내고,
   r1 하락 − base_fs 하락의 구간 상한이 0보다 작으면 "r1이 이 변형에 더 강건하다", 0을 포함하면 "차이를 확인하지 못했다".
+- r1_aug 판정(사전 등록, cv/prereg_r1_aug.md): 문서마다 두 seed 하락의 평균을 내고 (r1_aug · r1_aug_s43 평균) − (r1 · r1_s43
+  평균)의 구간을 낸다. 상한 < 0이면 "r1_aug가 더 강건하다". glyph(보지 않은 변형)에서만 일반화로 해석하고, value는 학습에
+  넣은 변형이라 "본 변형" 확인으로만 적는다.
 """
 import argparse
 import fcntl
@@ -30,6 +41,7 @@ import re
 import shutil
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -41,8 +53,11 @@ from eval import cv  # noqa: E402
 from eval.paired import bootstrap_ci, compare, doc_outcomes  # noqa: E402
 from eval.score import score_docs  # noqa: E402
 
-PERTURB_ROOT = cv.CV_ROOT / "perturb"
-CONDITIONS = ("base_fs", "r1")  # cv/experiments.yaml의 조건 이름
+CV_ROOT = cv.CV_ROOT          # --root로 바꾼다(예: cv/runpod). 변형 시험 결과는 <root>/perturb/
+PERTURB_ROOT = CV_ROOT / "perturb"
+CONDITIONS = ("base_fs", "r1")  # cv/experiments.yaml의 조건 이름. run의 기본값이자 r1 대 base_fs 판정 대상
+AUG_PAIRS = (("r1_aug", "r1_aug_s43"), ("r1", "r1_s43"))  # r1_aug 사전 등록 판정: (레시피 두 seed, 기준 두 seed)
+REPORT_CONDITIONS = ("base_fs", "r1", "r1_s43", "r1_aug", "r1_aug_s43")  # 출력이 다 있는 것만 보고서에 넣는다
 SEED = 42
 WRAP = 30
 
@@ -90,18 +105,41 @@ def value(text, rng):
     return "\n".join(lines)
 
 
-SETS = {"layout": layout, "value": value}
+GLYPH_DASHES = "‐‑‒–—−"  # core/normalize._DASHES와 같은 글자
+_DASH_MAP = str.maketrans({c: "-" for c in GLYPH_DASHES})
+_FULLWIDTH = str.maketrans("0123456789", "０１２３４５６７８９")
+
+
+def glyph(text, rng):
+    def one(m):
+        kind = rng.choice(("dash", "fullwidth", "paren"))
+        if kind == "dash":
+            return rng.choice(GLYPH_DASHES).join(m.groups())
+        if kind == "fullwidth":
+            return m.group(0).translate(_FULLWIDTH)
+        return f"({m.group(0)})"
+    return _CAS.sub(one, text)
+
+
+SETS = {"layout": layout, "value": value, "glyph": glyph}
 
 
 def squash_all(s):
     return re.sub(r"\s+", "", s)
 
 
+def glyph_canon(s):
+    return re.sub(r"[()]", "", squash_all(unicodedata.normalize("NFKC", s).translate(_DASH_MAP)))
+
+
+CANON = {"layout": squash_all, "value": squash_all, "glyph": glyph_canon}  # make가 원본과 같은지 보는 기준
+
+
 def perturb(name, doc_id, text):
-    """세트 · 문서마다 고정 seed. 공백을 지운 내용이 원본과 다르면 멈춘다."""
+    """세트 · 문서마다 고정 seed. 세트의 기준(CANON)으로 원본과 다르면 멈춘다."""
     out = SETS[name](text, random.Random(f"{SEED}:{name}:{doc_id}"))
-    if squash_all(out) != squash_all(text):
-        sys.exit(f"[거부] {name} 변형이 {doc_id}의 내용을 바꿨다(공백 밖 글자가 다름)")
+    if CANON[name](out) != CANON[name](text):
+        sys.exit(f"[거부] {name} 변형이 {doc_id}의 내용을 바꿨다({CANON[name].__name__} 기준으로 다름)")
     return out
 
 
@@ -114,7 +152,7 @@ def out_root(name, cond, k):
 
 
 def cmd_make(args):
-    fold_of = cv.read_folds(cv.CV_ROOT)
+    fold_of = cv.read_folds(CV_ROOT)
     stats = []
     for name in SETS:
         changed = total = docs_changed = 0
@@ -142,7 +180,7 @@ def cmd_make(args):
 
 def cmd_run(args):
     exp = cv.load_experiments(cv.EXPERIMENTS)
-    fold_of = cv.read_folds(cv.CV_ROOT)
+    fold_of = cv.read_folds(CV_ROOT)
     names = [args.set] if args.set else list(SETS)
     PERTURB_ROOT.mkdir(parents=True, exist_ok=True)
     with open(PERTURB_ROOT / ".lock", "w") as lock:
@@ -151,10 +189,12 @@ def cmd_run(args):
         except BlockingIOError:
             sys.exit("[거부] 다른 cv_perturb run이 돌고 있다")
         for name in names:
-            for cond in CONDITIONS:
+            for cond in args.cond.split(",") if args.cond else CONDITIONS:
+                if cond not in exp["conditions"]:
+                    sys.exit(f"[거부] {cond}이 cv/experiments.yaml에 없다")
                 ctype = exp["conditions"][cond]["type"]
                 for k in sorted(set(fold_of.values())):
-                    p = cv.Paths(cv.CV_ROOT, cond, k)
+                    p = cv.Paths(CV_ROOT, cond, k)
                     if not text_dir(name, k).exists():
                         sys.exit("[거부] 변형 텍스트가 없다 — make 먼저")
                     cmd = [cv.PY, "eval/infer.py", "--condition", cv.INFER_CONDITION[ctype], "--split", "val",
@@ -218,17 +258,21 @@ def outcomes(pred_dir, doc_ids):
 
 def cmd_report(args):
     exp = cv.load_experiments(cv.EXPERIMENTS)
-    fold_of = cv.read_folds(cv.CV_ROOT)
+    fold_of = cv.read_folds(CV_ROOT)
     groups = {d: r["split_group"] for d, r in cv.labeled_docs().items()}
     ids = sorted(fold_of)
     orig, orig_dir = {}, {}
-    for cond in CONDITIONS:
+    for cond in REPORT_CONDITIONS:
+        if cond not in exp["conditions"]:
+            continue
         ctype = exp["conditions"][cond]["type"]
-        orig_dir[cond] = cv.CV_ROOT / "pooled" / cond / cv.INFER_CONDITION[ctype] / "val"
-        orig[cond] = outcomes(orig_dir[cond], ids)
+        d = CV_ROOT / "pooled" / cond / cv.INFER_CONDITION[ctype] / "val"
+        if all((d / f"{x}.json").exists() for x in ids):
+            orig_dir[cond] = d
+            orig[cond] = outcomes(d, ids)
     rows, L = [], ["# 보지 않은 서식 변형 강건성", "",
                    "- 학습 증강 렌더러 6종에 없는 변형으로 평가 문서 45건의 모양만 바꿔 같은 fold 모델로 다시 추론했다. "
-                   "정의 · 판정 기준은 eval/cv_perturb.py 머리말(결과 전에 커밋).",
+                   "정의 · 판정 기준은 eval/cv_perturb.py 머리말(결과 전에 커밋). glyph와 r1_aug 판정은 cv/prereg_r1_aug.md.",
                    "- 원본 = 그룹 교차검증 출력(cv/pooled/). 채점은 둘 다 원본 텍스트 기준. 하락 = 원본 − 변형, 제조사 그룹 부트스트랩 95% 구간.",
                    ""]
     stats = PERTURB_ROOT / "make_stats.md"
@@ -236,40 +280,50 @@ def cmd_report(args):
         L += ["변형 강도:", "", stats.read_text(encoding="utf-8"), ""]
     for name in SETS:
         pert, drop, shapes = {}, {}, {}
-        for cond in CONDITIONS:
-            ctype = exp["conditions"][cond]["type"]
-            pd = pool_perturbed(name, cond, ctype, fold_of)
+        for cond in orig:
+            pd = pool_perturbed(name, cond, exp["conditions"][cond]["type"], fold_of)
             if pd is None:
-                L += [f"## {name}", "", f"- {cond}: 추론이 끝나지 않음", ""]
-                break
+                continue
             pert[cond] = outcomes(pd, ids)
             shapes[cond] = (cas_shapes(orig_dir[cond], ids), cas_shapes(pd, ids))
             for m, v in pert[cond][1].items():
                 rows.append({"set": name, "condition": cond, "metric": m, "original": orig[cond][1].get(m), "perturbed": v})
-        if len(pert) < len(CONDITIONS):
+        conds = list(pert)
+        L += [f"## {name}", ""]
+        if not conds:
+            L += ["- 추론이 끝난 조건이 없음", ""]
             continue
-        L += [f"## {name}", "", "| 지표 | " + " | ".join(f"{c} 원본 → 변형" for c in CONDITIONS) + " |",
-              "|---|" + "---|" * len(CONDITIONS)]
+        L += ["| 지표 | " + " | ".join(f"{c} 원본 → 변형" for c in conds) + " |", "|---|" + "---|" * len(conds)]
         for m in ("parse_rate", "schema_rate", "product_name_acc", "signal_word_acc", "ghs_f1", "hcode_f1", "cas_f1",
                   "nocas_f1", "doc_exact_ext_rate"):
             L.append(f"| {m} | " + " | ".join(f"{cv.fmt(orig[c][1].get(m), 'x')} → {cv.fmt(pert[c][1].get(m), 'x')}"
-                                             for c in CONDITIONS) + " |")
+                                             for c in conds) + " |")
         L += ["", "| 하락(원본 − 변형), doc_exact_ext | 승(원본만 맞음) · 패 · 무 | 하락 [95% 구간] |", "|---|---|---|"]
-        for cond in CONDITIONS:
+        for cond in conds:
             r = next(x for x in compare(orig[cond][0], pert[cond][0], groups, ids) if x["metric"] == "doc_exact_ext")
             drop[cond] = {d: orig[cond][0][d]["doc_exact_ext"] - pert[cond][0][d]["doc_exact_ext"] for d in ids}
             L.append(f"| {cond} | {r['win']} · {r['loss']} · {r['tie']} | {r['mean_diff']:+.3f} "
                      f"[{r['ci_low']:+.3f}, {r['ci_high']:+.3f}] |")
-        dd = {d: drop["r1"][d] - drop["base_fs"][d] for d in ids}
-        lo, hi = bootstrap_ci(dd, groups)
-        mean = sum(dd.values()) / len(dd)
-        verdict = ("r1이 이 변형에 더 강건하다" if hi < 0 else
-                   "r1이 이 변형에 더 약하다" if lo > 0 else "차이를 확인하지 못했다")
-        L += [f"| **r1 하락 − base_fs 하락** | | **{mean:+.3f} [{lo:+.3f}, {hi:+.3f}]** → {verdict} |", ""]
-        r1_lost = [d for d in ids if drop["r1"][d] > 0]
-        fs_lost = [d for d in ids if drop["base_fs"][d] > 0]
-        L += [f"- 변형으로 새로 틀린 문서 — r1: {' '.join(r1_lost) or '없음'} / base_fs: {' '.join(fs_lost) or '없음'}"]
-        L += [f"- 출력 cas_number 모양({c}) — 원본: {shapes[c][0]} / 변형: {shapes[c][1]}" for c in CONDITIONS] + [""]
+        if all(c in drop for c in CONDITIONS):
+            dd = {d: drop["r1"][d] - drop["base_fs"][d] for d in ids}
+            lo, hi = bootstrap_ci(dd, groups)
+            mean = sum(dd.values()) / len(dd)
+            verdict = ("r1이 이 변형에 더 강건하다" if hi < 0 else
+                       "r1이 이 변형에 더 약하다" if lo > 0 else "차이를 확인하지 못했다")
+            L += [f"| **r1 하락 − base_fs 하락** | | **{mean:+.3f} [{lo:+.3f}, {hi:+.3f}]** → {verdict} |"]
+        (a1, a2), (b1, b2) = AUG_PAIRS
+        if all(c in drop for c in (a1, a2, b1, b2)):
+            dd = {d: (drop[a1][d] + drop[a2][d]) / 2 - (drop[b1][d] + drop[b2][d]) / 2 for d in ids}
+            lo, hi = bootstrap_ci(dd, groups)
+            mean = sum(dd.values()) / len(dd)
+            verdict = ("r1_aug가 이 변형에 더 강건하다" if hi < 0 else
+                       "r1_aug가 이 변형에 더 약하다" if lo > 0 else "차이를 확인하지 못했다")
+            kind = {"glyph": "보지 않은 변형 — 일반화 판정", "value": "학습에 넣은 변형 — 본 변형 확인"}.get(name, "참고")
+            L += [f"| **r1_aug 하락 − r1 하락 (두 seed 평균)** | {kind} | **{mean:+.3f} [{lo:+.3f}, {hi:+.3f}]** → {verdict} |"]
+        L += [""]
+        lost = {c: [d for d in ids if drop[c][d] > 0] for c in conds}
+        L += ["- 변형으로 새로 틀린 문서 — " + " / ".join(f"{c}: {' '.join(v) or '없음'}" for c, v in lost.items())]
+        L += [f"- 출력 cas_number 모양({c}) — 원본: {shapes[c][0]} / 변형: {shapes[c][1]}" for c in conds] + [""]
     cv.write_csv(PERTURB_ROOT / "scores.csv", rows, ["set", "condition", "metric", "original", "perturbed"])
     (PERTURB_ROOT / "report.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("\n".join(L))
@@ -277,12 +331,17 @@ def cmd_report(args):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--root", default=str(cv.CV_ROOT), help="교차검증 결과 폴더(기본 cv/). 결과는 <root>/perturb/")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("make", help="변형 텍스트 생성 + 내용 보존 검사")
     r = sub.add_parser("run", help="fold별 추론")
     r.add_argument("--set", choices=sorted(SETS))
+    r.add_argument("--cond", help=f"조건 이름(쉼표로 여러 개). 기본 {','.join(CONDITIONS)}")
     sub.add_parser("report", help="채점 · 하락 폭 · 보고서")
     args = ap.parse_args(argv)
+    global CV_ROOT, PERTURB_ROOT
+    CV_ROOT = Path(args.root).resolve()
+    PERTURB_ROOT = CV_ROOT / "perturb"
     {"make": cmd_make, "run": cmd_run, "report": cmd_report}[args.cmd](args)
 
 

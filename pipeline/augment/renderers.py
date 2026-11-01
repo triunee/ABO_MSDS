@@ -119,3 +119,122 @@ RENDERERS = {
     "pagehdr": page_headers,
     "caslabel": cas_labels,
 }
+
+
+# ---------------------------------------------------------------- 오류 겨냥 렌더러 (r1_aug, build_jsonl.py --targeted)
+# 교차검증 기준선 실패 분석(cv/prereg_r1_aug.md)을 보고 고른 4종. 같은 45건을 보고 골랐다는 선택 편향은 보고서에 밝힌다.
+# RENDERERS에 넣지 않는다 — 넣으면 r1 학습셋(렌더러 6종 · 같은 난수 순서)이 바뀐다. train에만 쓴다.
+# 바꿀 곳이 없는 문서에만 None을 돌려준다(해당 없음). 고른 표기가 원본과 같으면 텍스트를 그대로 돌려줘
+# build_jsonl이 다시 뽑게 한다. 값 글자는 그대로 두고, 같은 정답으로 읽히는 표기만 바꾼다
+# (check_forbidden.protected_counts가 Category N = 구분 N, Liquefied gas = 액화가스, 비해당 서술 = 해당없음으로 센다).
+_CAS = re.compile(r"(?<![\d-])(\d{2,7})-(\d{2})-(\d)(?![\d-])")
+_RANGE = re.compile(r"(\d)[ \t]*([~∼～])[ \t]*(\d)")
+_SIGNAL = re.compile(r"(?<![가-힣])(위험|경고)(?![가-힣])")
+CAS_SEPS = [" - ", " -", "- "]
+
+# 2항 안의 비해당 서술. 바꾸는 쪽은 해당없음 · 라벨 부착 규정 없음만(행 단위 "분류되지 않음"은 두고)
+_NONAPP = re.compile(r"해당[ \t]*사항[ \t]*없음|해당[ \t]*없음|라벨[ \t]*부착[ \t]*규정[ \t]*없음")
+NONAPP_STYLES = ["해당없음", "해당 사항 없음", "라벨 부착 규정 없음", "규정 없음", "분류되지 않음"]
+
+_CATEGORY = re.compile(r"(?:구[ \t]*분|Category)[ \t]*(\d[A-C]?)(?![\dA-Za-z])", re.I)
+CATEGORY_STYLES = ["구분 {n}", "구분{n}", "Category {n}"]
+_GAS = re.compile(r"(냉동[ \t]*액화|액화|압축|용해)[ \t]*가스")
+GAS_STYLES = {"냉동액화": ["냉동액화가스", "냉동 액화가스"], "액화": ["액화가스", "액화 가스", "Liquefied gas"],
+              "압축": ["압축가스", "압축 가스", "Compressed gas"], "용해": ["용해가스", "용해 가스"]}
+
+_H_LINE = re.compile(r"^\s*(?:[◦○•·▶※\-]\s*)?H\d{3}")
+JOIN_SEPS = [" ▷ ", " ▷", ". "]
+
+
+def _section2(lines):
+    """2항 제목 다음 줄 ~ 3항 제목 앞 줄의 범위 (start, end). 못 찾으면 None."""
+    s2 = next((i for i, ln in enumerate(lines) if (m := _SECTION.match(ln)) and m.group(1) == "2"), None)
+    if s2 is None:
+        return None
+    s3 = next((i for i in range(s2 + 1, len(lines)) if (m := _SECTION.match(lines[i])) and m.group(1) == "3"), len(lines))
+    return s2 + 1, s3
+
+
+def value_spacing(text, rng):
+    """값 안 공백: CAS 하이픈 양옆(67 - 64 - 1), 함유량 범위 구분자 양옆(10 ~ 20), 신호어 줄의 위 험 · 경 고.
+    plan 3.4 "값 공백 · 구두점". 공백만 넣는다. 어느 구분자를 골라도 바뀌므로, 안 바뀌면 바꿀 곳이 없는 것."""
+    sep = rng.choice(CAS_SEPS)
+    out = _CAS.sub(lambda m: sep.join(m.groups()), text)
+    out = _RANGE.sub(r"\1 \2 \3", out)
+    lines = out.split("\n")
+    for i, ln in enumerate(lines):
+        if "신호어" not in ln:
+            continue
+        head, _, tail = ln.partition("신호어")
+        if _SIGNAL.search(tail):
+            lines[i] = head + "신호어" + _SIGNAL.sub(lambda m: " ".join(m.group(1)), tail)
+        elif i + 1 < len(lines):
+            lines[i + 1] = _SIGNAL.sub(lambda m: " ".join(m.group(1)), lines[i + 1])
+    out = "\n".join(lines)
+    return out if out != text else None
+
+
+def nonapplicable(text, rng):
+    """2항의 비해당 서술(해당없음 · 라벨 부착 규정 없음)을 다른 비해당 표현 하나로 바꾼다. 정답 상태는 그대로 해당없음
+    (plan 2절 상태 값 표, core/prompt.py v1 규칙 2)."""
+    lines = text.split("\n")
+    span = _section2(lines)
+    if span is None or not any(_NONAPP.search(lines[i]) for i in range(*span)):
+        return None
+    style = rng.choice(NONAPP_STYLES)
+    for i in range(*span):
+        lines[i] = _NONAPP.sub(style, lines[i])
+    return "\n".join(lines)
+
+
+def category_notation(text, rng):
+    """분류 구분 표기(구분 2A · 구분2A · Category 2A)와 고압가스 상태명 표기(액화가스 · 액화 가스 · Liquefied gas)를 바꾼다.
+    세부구분 글자(1A · 2A)와 숫자는 그대로. plan 2절 "분류 표기" · "고압가스"의 정규화 대상 표기만 쓴다."""
+    if not (_CATEGORY.search(text) or _GAS.search(text)):
+        return None
+    style = rng.choice(CATEGORY_STYLES)
+    out = _CATEGORY.sub(lambda m: style.format(n=m.group(1).upper()), text)
+    return _GAS.sub(lambda m: rng.choice(GAS_STYLES[re.sub(r"\s+", "", m.group(1))]), out)
+
+
+def join_lines(text, rng):
+    """2항에서 분류 줄(구분 N · 가스 상태가 있는 줄)과 H코드 줄이 2줄 이상 이어지면 ▷ · 마침표로 한 줄에 잇는다(구서식).
+    이어 붙이는 줄 앞 불릿만 뗀다. 정답은 줄마다 1건 그대로(plan 2절)."""
+    lines = text.split("\n")
+    span = _section2(lines)
+    if span is None:
+        return None
+    sep = rng.choice(JOIN_SEPS)
+
+    def kind(ln):
+        if _H_LINE.match(ln):
+            return "h"
+        if _CATEGORY.search(ln) or _GAS.search(ln):
+            return "ghs"
+        return None
+
+    out, i, joined = lines[:span[0]], span[0], False
+    while i < span[1]:
+        k, j = kind(lines[i]), i + 1
+        while k and j < span[1] and kind(lines[j]) == k:
+            j += 1
+        if j - i >= 2:
+            parts = [lines[i].rstrip()] + [_BULLET_LINE.sub("", ln).strip() for ln in lines[i + 1:j]]
+            line = parts[0]
+            for p in parts[1:]:
+                line += (" " if sep == ". " and line.endswith(".") else sep) + p
+            out.append(line)
+            joined = True
+        else:
+            out += lines[i:j]
+        i = j
+    out += lines[span[1]:]
+    return "\n".join(out) if joined else None
+
+
+TARGETED_RENDERERS = {
+    "valspace": value_spacing,
+    "nonapp": nonapplicable,
+    "catnote": category_notation,
+    "join": join_lines,
+}

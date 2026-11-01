@@ -12,4 +12,7 @@ conditions:
   base_fs: {type: base_fs}
   r1: {type: qlora}
   r1_s43: {type: qlora, train: {seed: 43}, replicate_of: r1}   # 레시피가 아니라 r1의 학습 seed 반복(학습 잡음 측정)
+  # 오류 겨냥 렌더러 4종 추가(build_jsonl --targeted). 기준 · 판정은 학습 전에 커밋한 cv/prereg_r1_aug.md
+  r1_aug: {type: qlora, build: {targeted: true}}
+  r1_aug_s43: {type: qlora, build: {targeted: true}, train: {seed: 43}, replicate_of: r1_aug}
   # r1_mlp: {type: qlora, train: {target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]}}

@@ -58,3 +58,13 @@ cv/perturb/text/
 cv/perturb/pooled/
 cv/perturb/.lock
 cv/perturb/*.out
+# RunPod 재실행(cv/runpod/, scripts/runpod/) — 위와 같은 규칙. hardware.txt · report · scores · outputs · config.json · loss.csv만 커밋
+cv/runpod/data/
+cv/runpod/runs/**/adapter/
+cv/runpod/pooled/
+cv/runpod/logs/
+cv/runpod/.lock
+cv/runpod/*.out
+cv/runpod/perturb/text/
+cv/runpod/perturb/pooled/
+cv/runpod/perturb/.lock

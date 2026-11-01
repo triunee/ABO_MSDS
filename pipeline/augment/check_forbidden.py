@@ -22,17 +22,29 @@ PROTECTED = {
     "신호어": re.compile(r"위[ \t]*험|경[ \t]*고|\bDANGER\b|\bWARNING\b", re.I),
     "구분": re.compile(r"(?:구[ \t]*분|Category)[ \t]*\d[A-C]?", re.I),
     "고압가스": re.compile(r"압축[ \t]*가스|냉동[ \t]*액화[ \t]*가스|액화[ \t]*가스|용해[ \t]*가스|Liquefied gas|Compressed gas", re.I),
-    "상태": re.compile(r"자[ \t]*료[ \t]*없[ \t]*음|해[ \t]*당[ \t]*없[ \t]*음|분류[ \t]*되지[ \t]*않|Not applicable", re.I),
+    "상태": re.compile(r"자[ \t]*료[ \t]*없[ \t]*음|해[ \t]*당[ \t]*(?:사[ \t]*항[ \t]*)?없[ \t]*음|라벨[ \t]*부착[ \t]*규정[ \t]*없[ \t]*음"
+                     r"|규정[ \t]*없[ \t]*음|분류[ \t]*되지[ \t]*않|Not applicable", re.I),
     "부등호": re.compile(r"[<>≤≥＜＞]=?|이상|이하|미만|초과"),
 }
 
 
+# 같은 정답으로 정규화되는 표기는 한 토큰으로 센다(plan 2절): Category N = 구분 N, 영문 가스 상태 = 한국어,
+# 비해당 서술(해당 사항 없음 · 라벨 부착 규정 없음 · 규정 없음 · 분류되지 않음 · Not applicable) = 해당없음.
+# 렌더러가 이 표기끼리 바꾸는 것은 허용하고(renderers.TARGETED_RENDERERS), 개수가 바뀌는 것은 그대로 막는다.
+_CANON = [(re.compile(r"^CATEGORY"), "구분"), (re.compile(r"^LIQUEFIEDGAS$"), "액화가스"),
+          (re.compile(r"^COMPRESSEDGAS$"), "압축가스"),
+          (re.compile(r"^(?:해당사항없음|라벨부착규정없음|규정없음|분류되지않|NOTAPPLICABLE)$"), "해당없음")]
+
+
 def protected_counts(text):
-    """보호 토큰 종류별 개수. 공백 차이("위 험" / "위험")는 같은 것으로 센다."""
+    """보호 토큰 종류별 개수. 공백 차이("위 험" / "위험")와 같은 정답이 되는 표기 차이는 같은 것으로 센다."""
     out = Counter()
     for name, rx in PROTECTED.items():
         for m in rx.findall(text or ""):
-            out[(name, re.sub(r"\s+", "", m).upper())] += 1
+            key = re.sub(r"\s+", "", m).upper()
+            for crx, rep in _CANON:
+                key = crx.sub(rep, key)
+            out[(name, key)] += 1
     return out
 
 

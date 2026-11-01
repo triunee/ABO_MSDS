@@ -148,7 +148,7 @@ def build_report_summary(train_path, val_path=None, report_path=None, splits_csv
                                                    == rep["inputs"].get("val_labels_sha256"))
     return {
         **out,
-        "build_args": {k: rep["args"].get(k) for k in ("seed", "secret", "renderers", "ecnum", "max_length")},
+        "build_args": {k: rep["args"].get(k) for k in ("seed", "secret", "renderers", "ecnum", "targeted", "max_length")},
         "docs": t["docs"], "examples": t["examples"], "multiplier_incl_orig": t["multiplier_incl_orig"],
         "variants": t["variants"], "by_form": t["by_form"], "docs_with": t["docs_with"], "examples_with": t["examples_with"],
         "checks": rep.get("checks"),

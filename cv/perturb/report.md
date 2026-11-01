@@ -1,12 +1,13 @@
 # 보지 않은 서식 변형 강건성
 
-- 학습 증강 렌더러 6종에 없는 변형으로 평가 문서 45건의 모양만 바꿔 같은 fold 모델로 다시 추론했다. 정의 · 판정 기준은 eval/cv_perturb.py 머리말(결과 전에 커밋).
+- 학습 증강 렌더러 6종에 없는 변형으로 평가 문서 45건의 모양만 바꿔 같은 fold 모델로 다시 추론했다. 정의 · 판정 기준은 eval/cv_perturb.py 머리말(결과 전에 커밋). glyph와 r1_aug 판정은 cv/prereg_r1_aug.md.
 - 원본 = 그룹 교차검증 출력(cv/pooled/). 채점은 둘 다 원본 텍스트 기준. 하락 = 원본 − 변형, 제조사 그룹 부트스트랩 95% 구간.
 
 변형 강도:
 
 - layout: 바뀐 줄 652/2122 (30.7%), 바뀐 문서 45/45
 - value: 바뀐 줄 194/2122 (9.1%), 바뀐 문서 43/45
+- glyph: 바뀐 줄 142/2122 (6.7%), 바뀐 문서 41/45
 
 
 ## layout
@@ -29,7 +30,7 @@
 | r1 | 3 · 2 · 40 | +0.022 [-0.061, +0.093] |
 | **r1 하락 − base_fs 하락** | | **+0.022 [-0.105, +0.120]** → 차이를 확인하지 못했다 |
 
-- 변형으로 새로 틀린 문서 — r1: KR-HENKEL-002 KR-NOROO-002 KR-OCI-006 / base_fs: KR-GSC-002 KR-HENKEL-001
+- 변형으로 새로 틀린 문서 — base_fs: KR-GSC-002 KR-HENKEL-001 / r1: KR-HENKEL-002 KR-NOROO-002 KR-OCI-006
 - 출력 cas_number 모양(base_fs) — 원본: 형식 맞음 130 · 잘림 0 · null 31 · 그 밖 0 / 변형: 형식 맞음 128 · 잘림 0 · null 26 · 그 밖 0
 - 출력 cas_number 모양(r1) — 원본: 형식 맞음 126 · 잘림 0 · null 23 · 그 밖 0 / 변형: 형식 맞음 125 · 잘림 0 · null 24 · 그 밖 0
 
@@ -53,7 +54,11 @@
 | r1 | 12 · 1 · 32 | +0.244 [+0.093, +0.455] |
 | **r1 하락 − base_fs 하락** | | **+0.133 [+0.023, +0.246]** → r1이 이 변형에 더 약하다 |
 
-- 변형으로 새로 틀린 문서 — r1: KR-ASIACEM-001 KR-GSC-001 KR-GSC-002 KR-GSC-003 KR-GSC-004 KR-HANIL-002 KR-HANIL-004 KR-HENKEL-002 KR-ITW-001 KR-NHCHEM-001 KR-NOROO-002 KR-OCI-006 / base_fs: KR-ASIACEM-001 KR-GSC-002 KR-GSC-003 KR-GSC-004 KR-KCCSIL-001 KR-OCI-006
+- 변형으로 새로 틀린 문서 — base_fs: KR-ASIACEM-001 KR-GSC-002 KR-GSC-003 KR-GSC-004 KR-KCCSIL-001 KR-OCI-006 / r1: KR-ASIACEM-001 KR-GSC-001 KR-GSC-002 KR-GSC-003 KR-GSC-004 KR-HANIL-002 KR-HANIL-004 KR-HENKEL-002 KR-ITW-001 KR-NHCHEM-001 KR-NOROO-002 KR-OCI-006
 - 출력 cas_number 모양(base_fs) — 원본: 형식 맞음 130 · 잘림 0 · null 31 · 그 밖 0 / 변형: 형식 맞음 101 · 잘림 28 · null 31 · 그 밖 0
 - 출력 cas_number 모양(r1) — 원본: 형식 맞음 126 · 잘림 0 · null 23 · 그 밖 0 / 변형: 형식 맞음 59 · 잘림 56 · null 37 · 그 밖 0
+
+## glyph
+
+- 추론이 끝난 조건이 없음
 

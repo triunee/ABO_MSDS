@@ -95,6 +95,48 @@ class ConditionCount(unittest.TestCase):
         self.assertTrue(text.startswith("2개 (그 밖에 seed 반복 r1_s43 = r1의 반복"))
 
 
+class SeedMeanVerdict(unittest.TestCase):
+    """사전 등록 판정(cv/prereg_r1_aug.md): seed 평균 구간 하한 > 0 · seed마다 이김 · 악화 불허 지표 셋 다"""
+    IDS = [f"KR-G{i}-001" for i in range(8)]
+    GROUPS = {d: d.split("-")[1] for d in IDS}
+    METRICS = {m: 0.9 for m in cv.PREREG_GUARD}
+
+    def outs(self, ones):
+        from eval.paired import FIELDS
+        return {d: {f: int(i < ones) for f in FIELDS} for i, d in enumerate(self.IDS)}
+
+    def verdict(self, a42, a43, b42, b43, metrics=None):
+        outs = {"aug": self.outs(a42), "aug_s43": self.outs(a43), "r1": self.outs(b42), "r1_s43": self.outs(b43)}
+        mets = {n: dict(self.METRICS) for n in outs}
+        mets.update(metrics or {})
+        return cv.seed_mean_verdict(outs, mets, self.GROUPS, self.IDS, {42: "aug", 43: "aug_s43"},
+                                    {42: "r1", 43: "r1_s43"})
+
+    def test_recipe_seeds(self):
+        exp = {"conditions": {"r1": {"type": "qlora"}, "r1_s43": {"type": "qlora", "train": {"seed": 43}, "replicate_of": "r1"},
+                              "r1_aug": {"type": "qlora", "build": {"targeted": True}}}}
+        self.assertEqual(cv.recipe_seeds(exp, "r1"), {42: "r1", 43: "r1_s43"})
+        self.assertEqual(cv.recipe_seeds(exp, "r1_aug"), {42: "r1_aug"})
+
+    def test_clear_win(self):
+        v = self.verdict(8, 8, 0, 0)
+        self.assertEqual(v["verdict"], "개선 확인")
+        self.assertEqual(v["per_seed"][42], (1.0, 8, 0))
+
+    def test_one_seed_not_better_fails(self):
+        # 평균은 이기지만 seed 43끼리는 동률 → 실패
+        v = self.verdict(8, 4, 0, 4)
+        self.assertNotEqual(v["verdict"], "개선 확인")
+        self.assertIn("seed 43에서 기준보다 낫지 않음", v["failed"])
+
+    def test_guard_metric_drop_fails(self):
+        v = self.verdict(8, 8, 0, 0, {"aug": {**self.METRICS, "schema_rate": 0.5}})
+        self.assertIn("schema_rate 악화", v["failed"])
+
+    def test_tie_fails(self):
+        self.assertIn("seed 평균 구간 하한이 0 이하", self.verdict(4, 4, 4, 4)["failed"])
+
+
 class Consistency(unittest.TestCase):
     def test_sign_test_p(self):
         self.assertEqual(cv.sign_test_p(0, 0), 1.0)
@@ -131,7 +173,8 @@ class Perturb(unittest.TestCase):
         from eval import cv_perturb
         for name in cv_perturb.SETS:
             out = cv_perturb.perturb(name, "KR-X-001", self.TEXT)
-            self.assertEqual(cv_perturb.squash_all(out), cv_perturb.squash_all(self.TEXT))
+            canon = cv_perturb.CANON[name]  # layout · value는 공백만, glyph는 NFKC · 대시 · 괄호까지 정규화한 뒤 같아야 함
+            self.assertEqual(canon(out), canon(self.TEXT))
             self.assertEqual(out, cv_perturb.perturb(name, "KR-X-001", self.TEXT))  # seed 고정
 
     def test_value(self):
@@ -143,6 +186,18 @@ class Perturb(unittest.TestCase):
         self.assertIn("2012-11-30", out)       # 날짜 · EC 번호는 그대로
         self.assertIn("265-157-1", out)
         self.assertIn("유해·위험 문구", out)    # 신호어 줄이 아닌 '위험'은 그대로
+
+    def test_glyph_changes_only_cas(self):
+        from eval import cv_perturb
+        out = cv_perturb.perturb("glyph", "KR-X-001", self.TEXT)
+        self.assertNotIn("물 7732-18-5 ", out)
+        self.assertIn("2012-11-30", out)       # 날짜 · EC 번호 · 함유량은 그대로
+        self.assertIn("265-157-1", out)
+        self.assertIn("36~46", out)
+        self.assertEqual(cv_perturb.glyph_canon(out), cv_perturb.glyph_canon(self.TEXT))
+        from core.normalize import norm_cas    # 채점기는 대시 · 전각을 정규화한다(괄호는 모델이 떼야 함)
+        for form in ("７７３２-１８-５", "7732–18–5", "7732−18−5"):
+            self.assertEqual(norm_cas(form), "7732-18-5")
 
     def test_layout_keeps_paren_colon_and_wraps(self):
         from eval import cv_perturb

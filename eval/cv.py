@@ -57,6 +57,8 @@ PY = sys.executable
 BASE_BUILD = {"seed": 42, "secret": 1, "renderers": 6}
 INFER_CONDITION = {"base_zs": "base_zs", "base_fs": "base_fs", "qlora": "qlora_r1"}  # infer.py 조건 이름(폴더는 조건마다 따로)
 SMOKE_TRAIN_STEPS, SMOKE_INFER_LIMIT = 2, 2
+TRAIN_SEED = 42  # pipeline/train_qlora.py DEFAULTS의 seed. 조건의 train.seed가 없으면 이 값
+PREREG_GUARD = ("parse_rate", "schema_rate", "cas_f1", "pair_f1")  # 레시피 판정의 악화 불허 지표(cv/prereg_r1_aug.md)
 REPORT_METRICS = ("parse_rate", "schema_rate", "product_name_acc", "signal_word_acc", "ghs_f1", "hcode_f1", "cas_f1",
                   "pair_f1", "nocas_f1", "doc_exact_rate", "doc_exact_ext_rate", "fab_any_docs", "misplace_ke_n",
                   "input_tokens_mean", "gen_time_mean_s")
@@ -432,6 +434,41 @@ def condition_count(exp, names):
     return text
 
 
+def recipe_seeds(exp, recipe):
+    """레시피와 그 seed 반복 → {학습 seed: 조건 이름}"""
+    names = [recipe] + [n for n, c in exp["conditions"].items() if c.get("replicate_of") == recipe]
+    return {(exp["conditions"][n].get("train") or {}).get("seed", TRAIN_SEED): n for n in names}
+
+
+def seed_mean_verdict(outs, metrics, groups, ids, rs, bs, metric="doc_exact_ext"):
+    """사전 등록 판정(cv/prereg_r1_aug.md): 레시피 rs와 기준 bs({seed: 조건})를 같은 seed 묶음으로 비교한다.
+    outs[조건] = {doc: doc_outcomes}, metrics[조건] = 전체 지표. 셋 다 만족해야 "개선 확인":
+      1. 문서마다 seed 평균 맞음 비율의 차이(레시피 − 기준), 그룹 부트스트랩 95% 구간 하한 > 0
+      2. 같은 seed끼리의 평균 차이가 모든 seed에서 > 0
+      3. PREREG_GUARD 지표의 seed 평균이 기준보다 낮지 않음
+    → dict(판정 · 근거)."""
+    seeds = sorted(rs)
+    avg = lambda names: {d: {f: sum(outs[n][d][f] for n in names) / len(names) for f in outs[names[0]][d]} for d in ids}
+    main = next(r for r in compare(avg([rs[x] for x in seeds]), avg([bs[x] for x in seeds]), groups, ids)
+                if r["metric"] == metric)
+    per_seed = {}
+    for x in seeds:
+        diffs = [outs[rs[x]][d][metric] - outs[bs[x]][d][metric] for d in ids]
+        per_seed[x] = (sum(diffs) / len(diffs), sum(v > 0 for v in diffs), sum(v < 0 for v in diffs))
+    guard = {}
+    for m in PREREG_GUARD:
+        a = sum(metrics[rs[x]][m] for x in seeds) / len(seeds)
+        b = sum(metrics[bs[x]][m] for x in seeds) / len(seeds)
+        guard[m] = (a, b, a >= b)
+    failed = ([] if main["ci_low"] is not None and main["ci_low"] > 0 else ["seed 평균 구간 하한이 0 이하"])
+    failed += [f"seed {x}에서 기준보다 낫지 않음" for x, (mdiff, _, _) in per_seed.items() if mdiff <= 0]
+    failed += [f"{m} 악화" for m, (_, _, ok) in guard.items() if not ok]
+    flips = {name: sum(outs[c[seeds[0]]][d][metric] != outs[c[x]][d][metric] for d in ids for x in seeds[1:])
+             for name, c in (("recipe", rs), ("base", bs))}
+    return {"main": main, "per_seed": per_seed, "guard": guard, "flips": flips, "failed": failed,
+            "verdict": "개선 확인" if not failed else "개선을 확인하지 못했다"}
+
+
 def sign_test_p(win, loss):
     """양측 정확 부호 검정(무승부 제외) p값. 승 · 패가 모두 0이면 1."""
     n = win + loss
@@ -524,10 +561,23 @@ def cmd_report(args):
               ["a", "b", "subset", "metric", "n_docs", "n_groups", "win", "loss", "tie", "mean_diff", "ci_low", "ci_high"])
     (root / "manifest.json").write_text(json.dumps(manifest(root, exp, scored), ensure_ascii=False, indent=2) + "\n",
                                         encoding="utf-8")
-    write_report(root, exp, scored, skipped, paired_rows, docs, args.partial, consist)
+    prereg = {}
+    for name, c in exp["conditions"].items():
+        base = exp["baseline"]
+        if c["type"] != "qlora" or name == base or c.get("replicate_of"):
+            continue
+        rs, bs = recipe_seeds(exp, name), recipe_seeds(exp, base)
+        if len(rs) < 2 or set(rs) != set(bs) or not all(n in scored for n in [*rs.values(), *bs.values()]):
+            continue
+        conds = [*rs.values(), *bs.values()]
+        common = sorted(set.intersection(*(set(scored[n]["docs"]) for n in conds)))
+        outs = {n: {d: doc_outcomes(scored[n]["details"][d]) for d in common} for n in conds}
+        prereg[(name, base)] = (rs, bs, seed_mean_verdict(outs, {n: scored[n]["all"]["all"] for n in conds},
+                                                         groups, common, rs, bs))
+    write_report(root, exp, scored, skipped, paired_rows, docs, args.partial, consist, prereg)
 
 
-def write_report(root, exp, scored, skipped, paired_rows, docs, partial, consist=None):
+def write_report(root, exp, scored, skipped, paired_rows, docs, partial, consist=None, prereg=None):
     names = list(scored)
     n_docs = {n: len(scored[n]["docs"]) for n in names}
     n_groups = len({docs[d]["split_group"] for n in names for d in scored[n]["docs"]})
@@ -574,6 +624,20 @@ def write_report(root, exp, scored, skipped, paired_rows, docs, partial, consist
             lines.append(f"| {a} vs {b} | " + " | ".join(cells) + f" | {w} · {lo} · {t} (p={p:.3f}) | {gw} · {gl} · {gt} (p={gp:.3f}) |")
         lines += ["", "- fold 칸: 그 fold 문서들의 평균 차이(문서 수). 문서 단위 부호 검정은 같은 그룹 문서끼리의 상관을 무시해 "
                   "낙관적이다. 그룹 단위가 더 보수적이다.", ""]
+    for (name, base), (rs, bs, v) in (prereg or {}).items():
+        m = v["main"]
+        seeds = sorted(rs)
+        lines += [f"## 사전 등록 판정: {name} vs {base} (seed {' · '.join(map(str, seeds))} 평균, doc_exact_ext)", "",
+                  f"- 기준: cv/prereg_r1_aug.md. 레시피 {' · '.join(rs[x] for x in seeds)} / 기준 {' · '.join(bs[x] for x in seeds)}.",
+                  f"- **판정: {v['verdict']}**" + (f" — {', '.join(v['failed'])}" if v["failed"] else ""), "",
+                  "| 항목 | 값 | 조건 | 통과 |", "|---|---|---|---|",
+                  f"| seed 평균 차이 [95% 구간] | {m['mean_diff']:+.3f} [{m['ci_low']:+.3f}, {m['ci_high']:+.3f}] "
+                  f"(문서 {m['n_docs']} · 그룹 {m['n_groups']}) | 하한 > 0 | {'예' if m['ci_low'] > 0 else '아니오'} |"]
+        for x, (md, w, lo) in v["per_seed"].items():
+            lines.append(f"| seed {x}: {rs[x]} − {bs[x]} | {md:+.3f} (승 {w} · 패 {lo}) | > 0 | {'예' if md > 0 else '아니오'} |")
+        for k, (a, b, ok) in v["guard"].items():
+            lines.append(f"| {k} (seed 평균) | {a:.3f} vs {b:.3f} | 기준 이상 | {'예' if ok else '아니오'} |")
+        lines += ["", f"- 참고(판정에 쓰지 않음): seed끼리 뒤집힌 문서 — {name} {v['flips']['recipe']}건, {base} {v['flips']['base']}건.", ""]
     lines += ["## 읽을 때 주의", "",
               "- 구서식 문서는 모두 한 제조사 그룹이라 한 fold에 몰린다. 그 fold의 모델은 구서식을 학습에서 보지 못한다.",
               "- 같은 45건으로 여러 레시피를 비교해 고르면 고른 레시피의 점수는 조금 낙관적이다. 비교한 조건 수를 함께 적는다.",
