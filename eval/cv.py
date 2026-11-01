@@ -7,6 +7,7 @@
   python3 eval/cv.py run --cond base_fs --dry-run   # 돌릴 명령만 출력
   python3 eval/cv.py status                         # 조건 × fold 진행 상황
   python3 eval/cv.py report                         # 45건을 모아 채점 → cv/scores.csv · cv/paired.csv · cv/report.md
+  python3 eval/cv.py stopcheck --recipe r1_aug       # 중간 멈춤 규칙(seed 42 짝). 종료 코드 0 계속 · 3 멈춤 · 2 판단 불가
   # 동작 점검(학습 2 step, 추론 2건, 저장소 밖): --root <폴더> run --cond r1 --folds 0 --smoke
 
 설계
@@ -577,6 +578,33 @@ def cmd_report(args):
     write_report(root, exp, scored, skipped, paired_rows, docs, args.partial, consist, prereg)
 
 
+def cmd_stopcheck(args):
+    """중간 멈춤 규칙(cv/prereg_r1_aug.md 3절): 한 seed에서 레시피 − 기준의 doc_exact_ext 평균 차이를 본다.
+    > 0이면 다음 seed를 돌리고(종료 코드 0), 0 이하면 '같은 seed끼리 모두 이김' 조건이 이미 깨졌으니 멈춘다(3).
+    두 조건 중 하나라도 5 fold가 끝나지 않았으면 판단하지 않는다(2)."""
+    exp = load_experiments(args.experiments)
+    root = Path(args.root)
+    fold_of, docs = read_folds(root), labeled_docs()
+    a, b = recipe_seeds(exp, args.recipe).get(args.seed), recipe_seeds(exp, exp["baseline"]).get(args.seed)
+    if not a or not b:
+        sys.exit(f"seed {args.seed}의 조건이 experiments.yaml에 없다(레시피 {a}, 기준 {b})")
+    outs = {}
+    for name in (a, b):
+        pred_dir, info = pool(root, name, exp["conditions"][name]["type"], fold_of, False)
+        if pred_dir is None:
+            print(f"[판단 불가] {name}: {info}")
+            sys.exit(2)
+        details = score_condition(pred_dir, info, docs)["details"]
+        outs[name] = {d: doc_outcomes(details[d])["doc_exact_ext"] for d in info}
+    ids = sorted(set(outs[a]) & set(outs[b]))
+    diffs = [outs[a][d] - outs[b][d] for d in ids]
+    mean = sum(diffs) / len(diffs)
+    go = mean > 0
+    print(f"seed {args.seed}: {a} − {b} doc_exact_ext {mean:+.3f} (문서 {len(ids)}, 승 {sum(x > 0 for x in diffs)} · "
+          f"패 {sum(x < 0 for x in diffs)}) → {'계속(다음 seed를 돌림)' if go else '멈춤(개선을 확인하지 못했다)'}")
+    sys.exit(0 if go else 3)
+
+
 def write_report(root, exp, scored, skipped, paired_rows, docs, partial, consist=None, prereg=None):
     names = list(scored)
     n_docs = {n: len(scored[n]["docs"]) for n in names}
@@ -662,10 +690,14 @@ def main(argv=None):
     sub.add_parser("status", help="진행 상황")
     rp = sub.add_parser("report", help="모아서 채점 · 짝 비교 · 보고서")
     rp.add_argument("--partial", action="store_true", help="끝난 문서만 채점(동작 점검용, 보고 수치 아님)")
+    sc = sub.add_parser("stopcheck", help="중간 멈춤 규칙(cv/prereg_r1_aug.md 3절)")
+    sc.add_argument("--recipe", required=True, help="레시피 조건 이름(예: r1_aug)")
+    sc.add_argument("--seed", type=int, default=TRAIN_SEED, help=f"먼저 돌린 seed(기본 {TRAIN_SEED})")
     args = ap.parse_args(argv)
     if getattr(args, "smoke", False) and Path(args.root).resolve() == CV_ROOT.resolve():
         ap.error("--smoke는 cv/에 쓰지 않는다. --root <저장소 밖 폴더>를 줄 것")
-    {"folds": cmd_folds, "run": cmd_run, "status": cmd_status, "report": cmd_report}[args.cmd](args)
+    {"folds": cmd_folds, "run": cmd_run, "status": cmd_status, "report": cmd_report,
+     "stopcheck": cmd_stopcheck}[args.cmd](args)
 
 
 if __name__ == "__main__":

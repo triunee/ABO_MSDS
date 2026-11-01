@@ -38,6 +38,7 @@ nohup bash scripts/runpod/run_all.sh <PREREG> > /workspace/run_all.out 2>&1 &
 ```
 
 - 순서: fold 분할 확인(`cv/folds.csv`와 바이트 비교) → r1 · r1_aug · r1_s43 · r1_aug_s43 · base_fs · base_zs를 fold마다 학습 · 추론 → `cv.py report` → `cv_rules.py` → 변형 시험(layout · value · glyph) make · run · report
+- **중간 멈춤 규칙(사전 등록 3절):** seed 43 조건에 들어가기 전에 `cv.py stopcheck --recipe r1_aug`로 seed 42 짝을 본다. r1_aug − r1이 0 이하이면 r1_s43 · r1_aug_s43을 건너뛰고(학습 약 40% 절약) 나머지만 돈다. 결과는 `cv/runpod/stop_rule.txt`에 남는다.
 - 진행 상황:
   ```bash
   source /workspace/venv/bin/activate && python eval/cv.py --root cv/runpod status
