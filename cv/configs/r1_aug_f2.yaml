@@ -1,0 +1,5 @@
+# eval/cv.py가 만든 fold 설정 — pipeline/configs/r1.yaml 위에 덮어쓴다
+train_jsonl: cv/data/r1_aug/fold2/train.jsonl
+val_jsonl: cv/data/r1_aug/fold2/val.jsonl
+build_report: cv/data/r1_aug/fold2/build_report.json
+splits: cv/fold2/splits.csv

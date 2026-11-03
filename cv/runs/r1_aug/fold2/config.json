@@ -1,0 +1,166 @@
+{
+  "name": "cv_r1_aug_f2",
+  "smoke": false,
+  "created_at": "2026-11-02T15:14:08",
+  "git": {
+    "commit": "84c5579",
+    "dirty": false
+  },
+  "config": {
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "seed": 42,
+    "gradient_checkpointing": true,
+    "prompt": "v1",
+    "model": "Qwen/Qwen3-4B",
+    "model_revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "lora_r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj"
+    ],
+    "learning_rate": 0.0002,
+    "num_epochs": 2,
+    "per_device_batch_size": 1,
+    "grad_accum": 8,
+    "max_length": 4096,
+    "train_jsonl": "cv/data/r1_aug/fold2/train.jsonl",
+    "val_jsonl": "cv/data/r1_aug/fold2/val.jsonl",
+    "build_report": "cv/data/r1_aug/fold2/build_report.json",
+    "splits": "cv/fold2/splits.csv"
+  },
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "env": {
+    "torch": "2.14.0+cu130",
+    "transformers": "5.17.0",
+    "peft": "0.21.0",
+    "bitsandbytes": "0.50.2",
+    "accelerate": "1.15.0",
+    "gpu": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "gpu_mem_gib": 8.0
+  },
+  "model_commit": "1cfa9a7208912126459214e8b04321603b3df60c",
+  "data": {
+    "train_jsonl": "cv/data/r1_aug/fold2/train.jsonl",
+    "train_jsonl_sha256": "1d012baf2c490ffabe881dbc8b7fd32915e7a24719ae92543508d70530f18701",
+    "val_jsonl": "cv/data/r1_aug/fold2/val.jsonl",
+    "val_jsonl_sha256": "fba6a365e6826d3693c74fc2b18ee94138bd399092f83be484d18ae0c60a50e2",
+    "splits": "cv/fold2/splits.csv",
+    "splits_sha256": "a4103e4107ca49cbd6ab2b23cea44f7192c1bac577531daf32eecb8d07af9699",
+    "n_train": 376,
+    "n_val": 61,
+    "dropped_over_max_length": {
+      "train": [],
+      "val": []
+    }
+  },
+  "augmentation": {
+    "matches_train_jsonl": true,
+    "labels_unchanged_since_build": true,
+    "splits_unchanged_since_build": true,
+    "matches_val_jsonl": true,
+    "val_labels_unchanged_since_build": true,
+    "build_args": {
+      "seed": 42,
+      "secret": 1,
+      "renderers": 6,
+      "ecnum": false,
+      "targeted": true,
+      "max_length": 4096
+    },
+    "docs": 36,
+    "examples": 376,
+    "multiplier_incl_orig": 10.44,
+    "variants": {
+      "bullet": 23,
+      "caslabel": 36,
+      "catnote": 20,
+      "colon": 35,
+      "join": 20,
+      "nohcode": 24,
+      "nonapp": 9,
+      "orig": 36,
+      "pagehdr": 35,
+      "secret": 32,
+      "section": 35,
+      "subnum": 35,
+      "valspace": 36
+    },
+    "by_form": {
+      "구서식": {
+        "docs": 6,
+        "examples": 50
+      },
+      "수입품 국문판": {
+        "docs": 8,
+        "examples": 84
+      },
+      "현행": {
+        "docs": 22,
+        "examples": 242
+      }
+    },
+    "docs_with": {
+      "영업비밀": 7,
+      "H코드없음": 4
+    },
+    "examples_with": {
+      "영업비밀": 92,
+      "H코드없음": 59
+    },
+    "checks": {
+      "train_val_doc_overlap": [],
+      "val_variants_in_train": 0
+    },
+    "tokens": {
+      "max_length": 4096,
+      "p50": 2184,
+      "p90": 2971,
+      "p95": 3715,
+      "max": 3970,
+      "mean": 2292.5,
+      "longest": "KR-NEOGEN-002:pagehdr"
+    },
+    "over_limit": [],
+    "n_rejected": 17,
+    "code_sha256": {
+      "core/prompt.py": "f3935291229eaccf0cb484acfe3201fb544f595a32c0f32393e2814a334677b4",
+      "core/schema.py": "72e754657bcc858445d1d4ec889b82940cabe89892470f384199a7be5e5679f3",
+      "src/schema.py": "b77b118b3b9164e8da3ed432976bed3aed53f0482cd8b81d7409a67f8099a51b",
+      "pipeline/build_jsonl.py": "aacbfe553a958235bdfba526f0d1700e5b3eee5f928325589180253459185b2b",
+      "pipeline/guard.py": "36a8d7dcf2d0337de9b4b5763ac7adab0774b6008453c8d3ca5abb95530e7b95",
+      "pipeline/augment/renderers.py": "b8ba6c36ce425d44092f42e0b2d981323171513215fd3f9f4e6d0a2fc3a19ffa",
+      "pipeline/augment/mutators.py": "7b8e3f80b7b776ef84f3f253d64682e90a755542a518a59f629adb370e3de6b2",
+      "pipeline/augment/check_forbidden.py": "cbc39765f8a9f064d6ca2022e3ea3a3f26cdb6e8109ea2b393db2b2acf148208"
+    },
+    "prompt": {
+      "version": "v1",
+      "text_sha256": "26078435ce82383c7a02c0a4b04753cb88a3b5ab05fd7ea985081e155a82b8d7"
+    }
+  },
+  "schedule": {
+    "batch": 1,
+    "grad_accum": 8,
+    "effective_batch": 8,
+    "steps_per_epoch": 47,
+    "optimizer_steps": 94,
+    "tail_microbatches_dropped_per_epoch": 0
+  },
+  "result": {
+    "optimizer_steps_done": 94,
+    "train_seconds": 4719,
+    "seconds_per_step": 50.2,
+    "peak_gpu_memory": {
+      "allocated_gib": 6.35,
+      "reserved_gib": 7.4
+    },
+    "finished_at": "2026-11-02T16:33:18"
+  }
+}
