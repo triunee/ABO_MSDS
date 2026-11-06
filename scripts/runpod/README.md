@@ -68,3 +68,22 @@ bash scripts/runpod/collect.sh
 
 - `cv/runpod/report.md`: "사전 등록 판정: r1_aug vs r1" 절
 - `cv/runpod/perturb/report.md`: glyph · value 세트의 "r1_aug 하락 − r1 하락 (두 seed 평균)" 행
+
+## 새 test 평가 (`cv/prereg_newtest.md`)
+
+학습 없이 추론 600회(문서 50건 × 단위 12개) + 채점 + 판정만 한다. `run_all.sh` 대신 `newtest.sh`를 쓴다.
+
+1. Mac: 어댑터 10개 묶음 `newtest_adapters.tar.gz`를 만들어 pod의 `/workspace/`로 보낸다(`runpodctl send` 또는 scp).
+   ```bash
+   COPYFILE_DISABLE=1 tar --no-mac-metadata -czf ~/newtest_adapters.tar.gz cv/runs/r1/fold{0,1,2,3,4}/adapter cv/runs/r1_aug/fold{0,1,2,3,4}/adapter
+   ```
+   macOS 메타데이터(`._*`)가 들어가면 어댑터 폴더 해시가 달라져 3단계에서 멈춘다.
+2. pod: clone → `bash scripts/runpod/setup.sh bb81da1` → `tar xzf /workspace/newtest_adapters.tar.gz -C /workspace/ABO_MSDS`
+3. pod: `nohup bash scripts/runpod/newtest.sh <고정 커밋> > /workspace/newtest.out 2>&1 &`
+   - 고정 커밋 = `cv/newtest/test_manifest.csv`를 커밋한 해시
+   - 순서: 저장소 확인 → GPU(4090만) → 어댑터 해시 → 봉인 대조 4종 → `cv/newtest/hardware.txt` → 추론 · 채점 → 판정 → `/workspace/newtest_results_*.tar.gz`
+   - test 자료는 `/workspace/newtest/{text,labels,subset.csv,groups.csv}`(`NT_ROOT`로 바꿀 수 있음). 출력은 `/workspace/newtest/out/`
+   - `newtest.out`에는 단계 · 건수 · 판정만 나온다. 문서 이름이 있는 추론 로그는 `/workspace/newtest/out/_run.log`에만 있다. 개발 세션에 붙여 넣지 않는다.
+   - 끊기면 같은 명령으로 다시 돌린다. 끝난 단위 · 문서는 건너뛴다.
+4. 결과 묶음(`report.md` · `scores.csv` · `paired.csv` · `hardware.txt`)을 받아 저장소 루트에서 풀고 `git add cv/newtest`로 커밋한다.
+- 시간: 4090에서 추론 약 1시간 50분~2시간 30분 + 준비 약 30분(추정). 비용은 약 $1~2다(Community Cloud $0.34/시간 기준).

@@ -7,6 +7,9 @@
   "fewshot": "eval/fewshot.json",
   "gpu": "RunPod RTX 4090 24GB",
   "allow_resume": true,
+  "deviations": [
+    "규제 DB 대조(사전 등록 3절 2번)는 하지 않았다. 규제 DB의 사용 범위가 확정되지 않아서다. 정답은 원문만 보고 만들고 확정했다(정답 작업 쪽 결정, 첫 추론 전)."
+  ],
   "recipes": {
     "r1": [
       "r1_f0",

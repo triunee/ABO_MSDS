@@ -52,7 +52,7 @@ class NewTestEndToEnd(unittest.TestCase):
         units = [u for us in RECIPES.values() for u in us]
         self.exp.write_text(json.dumps({
             "prereg": "cv/prereg_newtest.md", "prereg_commit": "test", "max_new_tokens": 2048, "prompt_version": "v1",
-            "gpu": "test", "allow_resume": True, "recipes": RECIPES,
+            "gpu": "test", "allow_resume": True, "deviations": ["대조 생략(시험용 문장)"], "recipes": RECIPES,
             "adapter_paths": {u: f"cv/runs/x/{u}/adapter" for u in units},
             "adapters": {u: f"hash-{u}" for u in units}}), encoding="utf-8")
         self.nt_dir = self.tmp / "nt_results"  # 저장소의 cv/newtest 대신
@@ -101,6 +101,9 @@ class NewTestEndToEnd(unittest.TestCase):
             self.assertNotIn(doc_id, results)
             self.assertNotIn(doc_id.split("-")[1], results)
         self.assertIn("fold 어댑터 5개 사이에서 주지표가 갈린 문서: r1 0건 · r1_aug 1건", report)
+        self.assertIn("## 사전 등록과 다른 점\n\n- 대조 생략(시험용 문장)", report)
+        self.assertIn("## 한계 (사전 등록 7절 그대로)", report)
+        self.assertIn("- seed는 42 하나다.", report)  # 7절 본문이 그대로 들어감
         main = next(x for x in (self.nt_dir / "paired.csv").read_text(encoding="utf-8").splitlines()
                     if x.startswith("r1,base_fs,all,doc_exact_ext,"))
         self.assertIn("r1,base_fs,all,doc_exact_ext,5,4,5,0,0,1.0000,1.0000,1.0000", main)
@@ -139,6 +142,22 @@ class NewTestEndToEnd(unittest.TestCase):
         self.assertIn("[r1_f0] infer:", out)
         self.assertIn("--adapter " + str(ROOT / "cv/runs/x/r1_f0/adapter"), out)
         self.assertEqual(out.count(f"--experiment {self.exp} --manifest {self.manifest}"), 7)  # score 6 + infer 1
+
+    def test_verify_adapters(self):
+        adir = self.tmp / "adapters"
+        exp = json.loads(self.exp.read_text(encoding="utf-8"))
+        for u in exp["adapters"]:
+            (adir / u).mkdir(parents=True)
+            (adir / u / "adapter_model.safetensors").write_bytes(u.encode())
+            exp["adapter_paths"][u] = str(adir / u)
+            exp["adapters"][u] = infer.sha256_dir(adir / u)
+        self.exp.write_text(json.dumps(exp), encoding="utf-8")
+        self.assertIn("모두 일치", quiet(newtest.main, ["--experiment", str(self.exp), "verify-adapters"]))
+        # fold 0 · 1 어댑터가 자리를 바꿔 들어가면(둘 다 목록 안의 해시여도) 거부
+        (adir / "r1_f0" / "adapter_model.safetensors").write_bytes(b"r1_f1")
+        with self.assertRaises(SystemExit) as cm:
+            quiet(newtest.main, ["--experiment", str(self.exp), "verify-adapters"])
+        self.assertIn("r1_f0", str(cm.exception))
 
     def test_root_inside_repo_refused(self):
         with self.assertRaises(SystemExit) as cm:

@@ -12,6 +12,7 @@
   python3 eval/newtest.py status --root <NEWTEST_ROOT>            # 단위별 출력 수 · 채점 여부(건수만)
   python3 eval/newtest.py run    --root <NEWTEST_ROOT> [--dry-run] # 단위마다 infer → score. 끝난 단계는 건너뜀
   python3 eval/newtest.py report --root <NEWTEST_ROOT>            # 판정 → cv/newtest/report.md · scores.csv · paired.csv
+  python3 eval/newtest.py verify-adapters                         # 어댑터 10개 폴더 해시 = experiment.json
 
 - 고정: cv/newtest/experiment.json(어댑터 해시 · 생성 길이 · 프롬프트), 봉인: cv/newtest/test_manifest.csv.
   infer · score에 --experiment · --manifest로 넘겨 팀 test(eval/experiment.json · report/test_manifest.csv)와 섞지 않는다.
@@ -107,6 +108,23 @@ def cmd_status(args):
     for unit, cond, _ in units(exp):
         d = pred_dir(p, unit, cond)
         print(f"{unit:<12}{n_outputs(d):>5}/{total:<3}{'예' if (d / FIRST_FILE).exists() else '-':>5}")
+
+
+def cmd_verify_adapters(args):
+    """단위마다 어댑터 폴더 해시 = experiment.json의 그 단위 해시(다른 fold 어댑터가 자리를 바꿔 들어간 것까지 잡는다)"""
+    from eval.infer import sha256_dir
+    exp = load_exp(args.experiment)
+    bad = []
+    for unit, _, adapter in units(exp):
+        if adapter is None:
+            continue
+        got = sha256_dir(adapter) if adapter.is_dir() else "(폴더 없음)"
+        ok = got == exp["adapters"][unit]
+        print(f"{unit:<12}{'일치' if ok else '불일치'}  {got[:12]}")
+        bad += [] if ok else [unit]
+    if bad:
+        sys.exit(f"[거부] 어댑터 해시가 고정 파일과 다르다: {bad}")
+    print("어댑터 10개 모두 일치" if len(exp["adapters"]) == 10 else f"어댑터 {len(exp['adapters'])}개 모두 일치")
 
 
 def commands(exp, p, unit, cond, adapter, experiment, manifest):
@@ -298,6 +316,20 @@ def write_paired(rows, n_boot):
                            for k in cols}, "n_boot": n_boot, "seed": SEED})
 
 
+def prereg_limits(exp):
+    """사전 등록 파일의 '## 7. 한계' 절 본문(다음 '## ' 전까지)을 그대로 옮긴다"""
+    lines, out, on = (ROOT / exp["prereg"]).read_text(encoding="utf-8").splitlines(), [], False
+    for line in lines:
+        if line.startswith("## "):
+            on = line.startswith("## 7.")
+            continue
+        if on and line.strip():
+            out.append(line)
+    if not out:
+        sys.exit(f"[거부] {exp['prereg']}에서 '## 7.' 한계 절을 찾지 못했다")
+    return out
+
+
 def render(exp, subset_of, n_docs, n_groups, n_fail, cm, subsets, pairs, main_of, vm, vr, flips, n_boot):
     from collections import Counter
     forms = Counter(subset_of.values())
@@ -330,6 +362,9 @@ def render(exp, subset_of, n_docs, n_groups, n_fail, cm, subsets, pairs, main_of
               "| 지표 | " + " | ".join(cm) + " |", "|---|" + "---|" * len(cm)]
         L += [f"| {m} | " + " | ".join(fmt(cm[c][s].get(m), m) for c in cm) + " |" for m in REPORT_METRICS]
         L.append("")
+    L += ["## 사전 등록과 다른 점", ""]
+    L += [f"- {d}" for d in exp.get("deviations", [])] or ["- 없음"]
+    L += ["", "## 한계 (사전 등록 7절 그대로)", "", *prereg_limits(exp), ""]
     L.append(f"생성 {datetime.now().isoformat(timespec='seconds')} · `python3 eval/newtest.py report`")
     return "\n".join(L) + "\n"
 
@@ -339,6 +374,7 @@ def main(argv=None):
     ap.add_argument("--experiment", help="고정 파일(기본 cv/newtest/experiment.json)")
     ap.add_argument("--manifest", help="봉인 기록(기본 cv/newtest/test_manifest.csv)")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("verify-adapters", help="어댑터 10개의 폴더 해시를 experiment.json과 대조")
     for name in ("status", "run", "report"):
         s = sub.add_parser(name)
         s.add_argument("--root", required=True, help="<NEWTEST_ROOT>(저장소 밖)")
@@ -347,7 +383,8 @@ def main(argv=None):
         if name == "report":
             s.add_argument("--n-boot", type=int, default=N_BOOT)
     args = ap.parse_args(argv)
-    {"status": cmd_status, "run": cmd_run, "report": cmd_report}[args.cmd](args)
+    {"status": cmd_status, "run": cmd_run, "report": cmd_report,
+     "verify-adapters": cmd_verify_adapters}[args.cmd](args)
 
 
 if __name__ == "__main__":
