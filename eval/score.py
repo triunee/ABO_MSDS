@@ -41,6 +41,8 @@ report/scores.csv에 섞이지 않게(docs/deploy_quant_plan.md 6절). test에�
 - ke_number·chemical_name·supplier 등 참고 필드는 채점하지 않는다.
 - test는 --allow-test · 실험 고정(eval/experiment.json) · 저장소 밖 정답 · 서식 목록 · 텍스트 · 출력 폴더 · 봉인 대조
   (eval/seal.py) · 모든 문서의 출력 존재를 확인한 뒤에만 정답을 읽는다. 문서별 상세(정답 값 포함)는 출력 폴더(저장소 밖)에만 쓴다.
+- 다른 test 세트(cv/prereg_newtest.md): --experiment · --manifest로 그 세트의 고정 파일 · 봉인을 쓴다. 이때 점수는
+  report/scores.csv에 쓰지 않고 저장소 밖 <out-root>/_scores.csv(또는 저장소 밖 --scores-csv)에 쓴다(팀 기록과 섞지 않음).
 - test 최초 채점: 비교군마다 처음 채점한 결과를 _score_first.jsonl(메타 + 지표)과 _score_detail_first.jsonl로
   따로 남기고 읽기 전용으로 둔다. 다시 채점해도(별칭표 보강 등) 이 두 파일은 바꾸지 않는다.
 """
@@ -536,12 +538,16 @@ def check_prompt_version(pred_dir, version):
         sys.exit(f"[거부] {pred_dir}를 만든 뒤 프롬프트 {version}의 문구가 바뀌었다. 새 버전으로 다시 돌릴 것")
 
 
+def experiment_path(args):
+    return Path(getattr(args, "experiment", None) or EXPERIMENT_JSON)
+
+
 def gate_test(args, pred_dir):
     """test 채점 전 확인. 통과하기 전에는 정답 폴더를 열지 않는다. → 채점할 doc_id 목록"""
     if not args.allow_test:
         sys.exit("[거부] test 채점은 --allow-test가 있어야 한다(비교군 생성이 끝난 뒤)")
-    if not EXPERIMENT_JSON.exists():
-        sys.exit("[거부] eval/experiment.json(실험 고정)이 없다. 단계 7 뒤에만 test를 채점한다")
+    if not experiment_path(args).exists():
+        sys.exit(f"[거부] {experiment_path(args).name}(실험 고정)이 없다. 실험을 고정한 뒤에만 test를 채점한다")
     if args.self_check:
         sys.exit("[거부] test에는 self-check를 돌리지 않는다(봉인된 정답을 여는 일이라서). 채점기 점검은 val로")
     if args.no_write:
@@ -554,7 +560,7 @@ def gate_test(args, pred_dir):
             sys.exit(f"[거부] test는 저장소 밖 --{name.replace('_', '-')}가 필요하다"
                      "(정답 · 서식 목록 · 텍스트는 test 담당이 보관, 출력 · 채점 상세도 저장소 밖에 둠)")
     for kind, path in (("label", args.label_dir), ("text", args.text_dir), ("subset", args.subset_csv)):
-        require_sealed(kind, path)  # 봉인한 정답 · 텍스트 · 서식 목록으로만 채점(파일 해시만 보고, 정답은 아직 안 연다)
+        require_sealed(kind, path, args.manifest)  # 봉인한 정답 · 텍스트 · 서식 목록으로만 채점(파일 해시만 보고, 정답은 아직 안 연다)
     subset_of = read_subset_csv(args.subset_csv)
     log = read_log(pred_dir)
     missing = [d for d in subset_of if not (pred_dir / f"{d}.json").exists() and not log.get(d, {}).get("skipped")]
@@ -581,9 +587,17 @@ def main(argv=None):
                          "report/scores_prompt_<버전>.csv에 쓴다")
     ap.add_argument("--scores-csv", help="점수 기록 파일(기본: --prompt에 따라 report/scores.csv 또는 "
                                          "report/scores_prompt_<버전>.csv). 본 비교군이 아닌 결과를 따로 둘 때")
+    ap.add_argument("--experiment", help="test 실험 고정 파일(기본 eval/experiment.json = 팀 test)")
+    ap.add_argument("--manifest", help="test 봉인 기록(기본 report/test_manifest.csv = 팀 test)")
     args = ap.parse_args(argv)
-    if args.scores_csv and args.split == "test":
-        ap.error("--scores-csv는 test에 쓰지 않는다(test 점수는 기본 경로 · 최초 채점 기록으로 남긴다)")
+    other_set = args.split == "test" and bool(args.experiment)  # 팀 test가 아닌 test 세트
+    if args.scores_csv and args.split == "test" and not (other_set and outside_repo(args.scores_csv)):
+        ap.error("--scores-csv는 팀 test에 쓰지 않는다(test 점수는 기본 경로 · 최초 채점 기록으로 남긴다). "
+                 "다른 test 세트(--experiment)는 저장소 밖 경로만 받는다")
+    if (args.experiment or args.manifest) and args.split != "test":
+        ap.error("--experiment · --manifest는 test 전용이다")
+    if other_set and not args.manifest:
+        ap.error("다른 test 세트(--experiment)는 그 세트의 봉인 --manifest도 함께 준다")
 
     if not args.self_check and not args.condition:
         ap.error("--condition이 필요함(--self-check일 때만 생략 가능)")
@@ -594,6 +608,8 @@ def main(argv=None):
     pred_dir = (Path(args.out_root or OUTPUT_ROOT) / prompt_subdir(args.prompt) / (args.condition or "_self_check")
                 / args.split)
     scores_csv = Path(args.scores_csv) if args.scores_csv else scores_csv_for(args.prompt)
+    if other_set and not args.scores_csv:  # gate_test가 저장소 밖 --out-root를 확인한다
+        scores_csv = Path(args.out_root or OUTPUT_ROOT) / "_scores.csv"
     if not args.self_check:
         check_prompt_version(pred_dir, args.prompt)
 
@@ -678,7 +694,8 @@ def write_test_extras(args, pred_dir, rows, unknown_lines, detail_path):
         "split": args.split,
         "scored_at": datetime.now().isoformat(timespec="seconds"),
         "include_non_ghs": args.include_non_ghs,
-        "experiment_sha256": sha256_files([EXPERIMENT_JSON]),
+        "experiment_sha256": sha256_files([experiment_path(args)]),
+        "manifest_sha256": sha256_files([args.manifest]) if args.manifest else None,
         "scorer_sha256": sha256_files(SCORER_FILES),
         "alias_sha256": sha256_files([ALIAS_CSV]),
     }

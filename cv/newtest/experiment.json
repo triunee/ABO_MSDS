@@ -1,0 +1,50 @@
+{
+  "_note": "새 test 평가 고정(cv/prereg_newtest.md). eval/newtest.py · infer.py · score.py가 --experiment로 읽는다",
+  "prereg": "cv/prereg_newtest.md",
+  "prereg_commit": "f25cd28",
+  "max_new_tokens": 2048,
+  "prompt_version": "v1",
+  "fewshot": "eval/fewshot.json",
+  "gpu": "RunPod RTX 4090 24GB",
+  "allow_resume": true,
+  "recipes": {
+    "r1": [
+      "r1_f0",
+      "r1_f1",
+      "r1_f2",
+      "r1_f3",
+      "r1_f4"
+    ],
+    "r1_aug": [
+      "r1_aug_f0",
+      "r1_aug_f1",
+      "r1_aug_f2",
+      "r1_aug_f3",
+      "r1_aug_f4"
+    ]
+  },
+  "adapter_paths": {
+    "r1_f0": "cv/runs/r1/fold0/adapter",
+    "r1_f1": "cv/runs/r1/fold1/adapter",
+    "r1_f2": "cv/runs/r1/fold2/adapter",
+    "r1_f3": "cv/runs/r1/fold3/adapter",
+    "r1_f4": "cv/runs/r1/fold4/adapter",
+    "r1_aug_f0": "cv/runs/r1_aug/fold0/adapter",
+    "r1_aug_f1": "cv/runs/r1_aug/fold1/adapter",
+    "r1_aug_f2": "cv/runs/r1_aug/fold2/adapter",
+    "r1_aug_f3": "cv/runs/r1_aug/fold3/adapter",
+    "r1_aug_f4": "cv/runs/r1_aug/fold4/adapter"
+  },
+  "adapters": {
+    "r1_f0": "1c986d4c7e07de911f5960236e61605d4d1dba9936dcd3ccd27797b150a678b1",
+    "r1_f1": "a9fcc21ec70ac384d00ae3c33a465a25de1fd51f3fcaae1b350996f6476885a8",
+    "r1_f2": "41517c0afa916c4fc442af595a866e53ac63edca49b8450f7411c7cec9b3fd32",
+    "r1_f3": "bd8e798ab9f18d06601579f4d4594b1d5ba9c1af4829cfcd7d795c22a2ad5ed0",
+    "r1_f4": "19a4b2f52a85bf76d5ad8c99602fb8c1759e245f15579e9cef2fc489c1415f5b",
+    "r1_aug_f0": "e114c6d90a9384f2cdf45b7f13164834cca281a2d83bf5ac8a0194d11759d900",
+    "r1_aug_f1": "b961c95a58d21eef38bc795ad89e29479fbd9bdd4bab2eff2e7165c03b4a67cb",
+    "r1_aug_f2": "6b641aab75342d334ad6094718c7f803ccaafd624589aa5d69c25f5a260be8c5",
+    "r1_aug_f3": "e50fafaed3e89296fc1fd550f83efc07412da885a7230bed7e23da23124caf57",
+    "r1_aug_f4": "1db29207e6458bcaaa185bcaff13ca039a50c060988bce9480c8ed5057d2f7fc"
+  }
+}

@@ -17,6 +17,9 @@ manifest에는 파일 이름을 적지 않는다(doc_id에 제조사 약칭이 �
   python3 eval/seal.py --write  --label-dir <정답> --text-dir <텍스트> --subset-csv <서식> --groups-csv <그룹>
   python3 eval/seal.py --verify --label-dir <정답> --text-dir <텍스트> --subset-csv <서식> --groups-csv <그룹>
 
+--manifest: 다른 test 세트를 따로 봉인한다(기본 report/test_manifest.csv = 팀 test, 동작 불변).
+  새 test(cv/prereg_newtest.md)는 --manifest cv/newtest/test_manifest.csv. infer · score · paired도 같은 옵션을 받는다.
+
 eval/infer.py(text) · eval/score.py(label · text · subset) · eval/paired.py(group)는 test를 돌리기 전에
 require_sealed()로 넘겨받은 자료가 봉인과 같은지 확인하고, 다르거나 봉인 전이면 거부한다.
 """
@@ -87,9 +90,17 @@ def read_manifest(path=None):
     return [(r["kind"], r["sha256"]) for r in rows]
 
 
-def verify(kind, path, manifest=None):
+def rel_manifest(manifest_path=None):
+    p = Path(manifest_path or MANIFEST).resolve()
+    try:
+        return p.relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(p)
+
+
+def verify(kind, path, manifest=None, manifest_path=None):
     """→ (맞는지, 사유 목록, 어긋난 파일 이름). 이름은 호출한 쪽이 --show-names일 때만 보여 준다."""
-    rows = read_manifest() if manifest is None else manifest
+    rows = read_manifest(manifest_path) if manifest is None else manifest
     sealed = Counter(h for k, h in rows if k == kind)
     sealed_set = [h for k, h in rows if k == f"{kind}_set"]
     if not sealed or len(sealed_set) != 1:
@@ -106,11 +117,11 @@ def verify(kind, path, manifest=None):
     return not problems, problems, names
 
 
-def require_sealed(kind, path):
+def require_sealed(kind, path, manifest_path=None):
     """test 실행 전 게이트. 봉인 전이거나 봉인과 다르면 멈춘다(이름은 내지 않음)."""
-    ok, problems, _ = verify(kind, path)
+    ok, problems, _ = verify(kind, path, manifest_path=manifest_path)
     if not ok:
-        sys.exit(f"[거부] test {kind} 자료가 봉인(report/test_manifest.csv)과 맞지 않다: {'; '.join(problems)}. "
+        sys.exit(f"[거부] test {kind} 자료가 봉인({rel_manifest(manifest_path)})과 맞지 않다: {'; '.join(problems)}. "
                  "test 담당이 eval/seal.py --verify --show-names로 확인할 것")
 
 
@@ -167,18 +178,19 @@ def check_before_write(paths, show_names):
     return len(ids), Counter(subset.values()), len(set(group.values()))
 
 
-def write(paths, show_names):
-    if any(k in KINDS for k, _ in read_manifest()):
-        sys.exit(f"[거부] {MANIFEST}에 이미 봉인이 있다. 봉인은 1회만 한다(바꾸려면 PM 결정 + report/decisions.md 기록)")
+def write(paths, show_names, manifest_path=None):
+    manifest_path = Path(manifest_path or MANIFEST)
+    if any(k in KINDS for k, _ in read_manifest(manifest_path)):
+        sys.exit(f"[거부] {manifest_path}에 이미 봉인이 있다. 봉인은 1회만 한다(바꾸려면 PM 결정 + report/decisions.md 기록)")
     n, forms, n_groups = check_before_write(paths, show_names)
     rows = [r for kind in KINDS for r in manifest_rows(kind, file_hashes(kind, paths[kind]))]
-    MANIFEST.parent.mkdir(parents=True, exist_ok=True)
-    with open(MANIFEST, "w", encoding="utf-8", newline="") as f:
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(manifest_path, "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f, lineterminator="\n")
         w.writerow(["kind", "sha256"])
         w.writerows(rows)
     print(f"봉인: 정답 {n}건 · 제조사 그룹 {n_groups}개 · 서식별 " + " · ".join(f"{k} {v}" for k, v in sorted(forms.items())))
-    print(f"→ {MANIFEST} (파일 이름 없음). PM 승인 뒤 커밋하고 tag test-sealed")
+    print(f"→ {manifest_path} (파일 이름 없음). PM 승인 뒤 커밋하고 tag test-sealed")
 
 
 def main(argv=None):
@@ -191,6 +203,7 @@ def main(argv=None):
     ap.add_argument("--subset-csv", required=True)
     ap.add_argument("--groups-csv", required=True)
     ap.add_argument("--show-names", action="store_true", help="어긋난 파일 이름을 화면에 낸다(test 담당 전용)")
+    ap.add_argument("--manifest", help="봉인 기록 파일(기본 report/test_manifest.csv = 팀 test)")
     args = ap.parse_args(argv)
 
     paths = {"label": args.label_dir, "text": args.text_dir, "subset": args.subset_csv, "group": args.groups_csv}
@@ -198,11 +211,11 @@ def main(argv=None):
     if inside:
         sys.exit(f"[거부] test 자료는 저장소 밖에 둔다: {inside}")
     if args.write:
-        write(paths, args.show_names)
+        write(paths, args.show_names, args.manifest)
         return
     all_ok = True
     for kind in KINDS:
-        ok, problems, names = verify(kind, paths[kind])
+        ok, problems, names = verify(kind, paths[kind], manifest_path=args.manifest)
         all_ok &= ok
         print(f"{kind}: 일치" if ok else "\n".join(f"{kind}: 불일치 — {p}" for p in problems)
               + (f"\n    {names}" if args.show_names and names else ""))

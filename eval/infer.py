@@ -42,6 +42,12 @@ eval/experiment.json (단계 7에서 PM이 커밋)
    "adapter_sha256": "...",                     # python3 -c "from eval.infer import sha256_dir; print(sha256_dir('<폴더>'))"
    "prompt_version": "v1"}                      # 비교군 3개가 모두 이 프롬프트로 돈다(qlora_final을 학습한 버전)
   채점기 · 별칭표 해시 등 다른 키를 더 넣어도 된다. 위 세 키(max_new_tokens · adapter_sha256 · prompt_version)는 필수.
+
+다른 test 세트(cv/prereg_newtest.md): --experiment cv/newtest/experiment.json --manifest cv/newtest/test_manifest.csv
+  - 고정 파일에 adapter_sha256 대신 "adapters": {이름: 해시}를 둘 수 있다. --adapter 해시가 그 목록에 있어야 돈다.
+    어댑터마다 --out-root를 따로 준다(<NEWTEST_ROOT>/out/r1_f0 등, 조건 이름은 qlora_final 그대로).
+  - "allow_resume": true면, 끊긴 뒤 같은 설정(_run.jsonl 대조)으로 이어 돌릴 때 없는 문서만 생성한다.
+    이미 생성한 문서는 다시 만들지 않는다(--overwrite는 여전히 불가). 기본(팀 test)은 이어 돌리기도 거부.
 """
 import argparse
 import csv
@@ -299,15 +305,27 @@ def outside_repo(path):
         return True
 
 
-def load_experiment():
-    """eval/experiment.json(단계 7 고정값). 필수 키가 없으면 거부."""
-    if not EXPERIMENT_JSON.exists():
-        sys.exit("[거부] eval/experiment.json(실험 고정)이 없다. 단계 7(PM 고정 커밋) 뒤에만 test를 돌린다")
-    exp = json.loads(EXPERIMENT_JSON.read_text(encoding="utf-8"))
-    lacking = [k for k in ("max_new_tokens", "adapter_sha256", "prompt_version") if not exp.get(k)]
+def load_experiment(path=None):
+    """실험 고정 파일(기본 eval/experiment.json, 단계 7 고정값). 필수 키가 없으면 거부.
+    어댑터는 adapter_sha256(1개) 또는 adapters({이름: 해시}, 다른 test 세트용) 중 하나가 있어야 한다."""
+    path = Path(path or EXPERIMENT_JSON)
+    if not path.exists():
+        sys.exit(f"[거부] {path.name}(실험 고정)이 없다. 실험을 고정해 커밋한 뒤에만 test를 돌린다")
+    exp = json.loads(path.read_text(encoding="utf-8"))
+    lacking = [k for k in ("max_new_tokens", "prompt_version") if not exp.get(k)]
+    if not exp.get("adapter_sha256") and not exp.get("adapters"):
+        lacking.append("adapter_sha256 또는 adapters")
     if lacking:
-        sys.exit(f"[거부] eval/experiment.json에 {lacking}가 없다")
+        sys.exit(f"[거부] {path.name}에 {lacking}가 없다")
     return exp
+
+
+def allowed_adapters(exp):
+    """→ {해시: 이름}. 고정 파일에 적힌 어댑터만 test에서 돈다."""
+    out = {h: n for n, h in (exp.get("adapters") or {}).items()}
+    if exp.get("adapter_sha256"):
+        out[exp["adapter_sha256"]] = exp.get("adapter") or "adapter_sha256"
+    return out
 
 
 def check_args(args):
@@ -332,25 +350,26 @@ def check_args(args):
             sys.exit("[거부] test 추론은 --allow-test가 있어야 한다(모델·실험 고정 뒤, 비교군마다 1회)")
         if args.condition not in TEST_CONDITIONS:
             sys.exit(f"[거부] test 비교군은 {TEST_CONDITIONS}뿐이다. qlora_r1 · r2 · r3는 val에서 비교해 qlora_final로 고른다")
-        exp = load_experiment()
+        exp = load_experiment(args.experiment)
+        exp_name = Path(args.experiment or EXPERIMENT_JSON).name
         if not args.text_dir or not outside_repo(args.text_dir):
             sys.exit("[거부] test 텍스트는 저장소 밖에 있어야 한다: --text-dir <test 담당이 넘긴 폴더>")
         if not outside_repo(args.out_root):
             sys.exit("[거부] test 출력은 저장소 밖에 둔다: --out-root <저장소 밖 폴더>")
-        require_sealed("text", args.text_dir)  # test 담당이 넘긴 텍스트가 봉인(report/test_manifest.csv)과 같아야 함
+        require_sealed("text", args.text_dir, args.manifest)  # 넘겨받은 텍스트가 봉인(--manifest, 기본 팀 test)과 같아야 함
         if args.overwrite or args.limit:
             sys.exit("[거부] test에는 --overwrite · --limit을 쓰지 않는다(비교군마다 전체 문서 1회)")
         if Path(args.fewshot_json).resolve() != FEWSHOT_JSON.resolve():
             sys.exit("[거부] test의 base_fs는 고정한 eval/fewshot.json으로만 돈다(--fewshot-json 불가)")
         if args.max_new_tokens is not None and args.max_new_tokens != exp["max_new_tokens"]:
-            sys.exit(f"[거부] --max-new-tokens {args.max_new_tokens} ≠ eval/experiment.json의 {exp['max_new_tokens']}. "
+            sys.exit(f"[거부] --max-new-tokens {args.max_new_tokens} ≠ {exp_name}의 {exp['max_new_tokens']}. "
                      "test는 고정값으로만 돈다(생략하면 고정값을 씀)")
         if args.prompt != exp["prompt_version"]:
-            sys.exit(f"[거부] --prompt {args.prompt} ≠ eval/experiment.json의 prompt_version {exp['prompt_version']}. "
+            sys.exit(f"[거부] --prompt {args.prompt} ≠ {exp_name}의 prompt_version {exp['prompt_version']}. "
                      "test 비교군은 모두 고정한 프롬프트로 돈다")
-        if args.adapter and sha256_dir(args.adapter) != exp["adapter_sha256"]:
-            sys.exit(f"[거부] --adapter {args.adapter}의 해시가 eval/experiment.json의 adapter_sha256과 다르다"
-                     f"(고정한 어댑터: {exp.get('adapter')})")
+        if args.adapter and sha256_dir(args.adapter) not in allowed_adapters(exp):
+            sys.exit(f"[거부] --adapter {args.adapter}의 해시가 {exp_name}의 adapter_sha256 · adapters 목록에 없다"
+                     f"(고정한 어댑터: {sorted(allowed_adapters(exp).values())})")
 
 
 def select_docs(args, splits, text_dir):
@@ -389,10 +408,13 @@ def main(argv=None):
     ap.add_argument("--fewshot-json", default=FEWSHOT_JSON,
                     help="base_fs 예시 목록 파일(기본 eval/fewshot.json). 교차검증(eval/cv.py)이 fold마다 따로 넘긴다")
     ap.add_argument("--out-root", default=OUTPUT_ROOT, help="출력 루트(기본 outputs/, test는 저장소 밖 폴더 필수)")
+    ap.add_argument("--experiment", help="test 실험 고정 파일(기본 eval/experiment.json = 팀 test)")
+    ap.add_argument("--manifest", help="test 봉인 기록(기본 report/test_manifest.csv = 팀 test)")
     args = ap.parse_args(argv)
     check_args(args)
     if args.max_new_tokens is None:
-        args.max_new_tokens = load_experiment()["max_new_tokens"] if args.split == "test" else DEFAULT_MAX_NEW_TOKENS
+        args.max_new_tokens = (load_experiment(args.experiment)["max_new_tokens"] if args.split == "test"
+                               else DEFAULT_MAX_NEW_TOKENS)
 
     text_dir = Path(args.text_dir or TEXT_DIR)
     splits = {} if args.split == "test" else read_splits(args.splits)
@@ -415,7 +437,7 @@ def main(argv=None):
         sys.exit(f"전처리 텍스트 없음 {len(missing)}건: {missing}\n→ pipeline/extract_text.py를 먼저 돌릴 것")
     check_resume(out_dir, run_record(args, base_name, revision, fewshot_ids, fewshot,
                                      len(all_ids), inputs_digest(all_ids, text_dir, cut)))
-    if args.split == "test" and any(out_dir.glob("*.json")):
+    if args.split == "test" and any(out_dir.glob("*.json")) and not load_experiment(args.experiment).get("allow_resume"):
         sys.exit(f"[거부] {out_dir}에 이미 출력이 있다. test는 비교군마다 1회만 생성한다")
     todo = [d for d in doc_ids if args.overwrite or not (out_dir / f"{d}.json").exists()]
     if not todo:
