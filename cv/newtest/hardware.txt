@@ -1,0 +1,13 @@
+# 새 test 추론 환경(scripts/runpod/newtest.sh가 첫 추론 전에 기록)
+recorded_at: 2026-11-06T15:20:42+00:00
+repo_head: 9c2e367166b101addef20aded8d72c2f607ccbc1
+fixed_commit: 9c2e367
+runpod_pod_id: ?
+gpu: NVIDIA GeForce RTX 4090, 24564 MiB, 595.91.07
+cpu: 48 cores, AMD EPYC 7352 24-Core Processor
+python: 3.12.3
+torch: 2.14.0+cu130 (cuda 13.0)
+transformers: 5.17.0
+peft: 0.21.0
+bitsandbytes: 0.50.2
+accelerate: 1.15.0
