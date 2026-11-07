@@ -1,7 +1,7 @@
 {
   "_note": "새 test 평가 고정(cv/prereg_newtest.md). eval/newtest.py · infer.py · score.py가 --experiment로 읽는다",
   "prereg": "cv/prereg_newtest.md",
-  "prereg_commit": "f25cd28",
+  "prereg_commit": "ed25d84",
   "max_new_tokens": 2048,
   "prompt_version": "v1",
   "fewshot": "eval/fewshot.json",
