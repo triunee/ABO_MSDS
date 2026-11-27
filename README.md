@@ -1,5 +1,7 @@
 # ABO_MSDS
 
+> **출처:** 이 저장소는 4인 팀 프로젝트 [EOCHAEEUN/ABO_MSDS](https://github.com/EOCHAEEUN/ABO_MSDS)의 fork입니다. 아래 본문과 팀 과업(라벨 · 학습 · test 평가 · API · 검토 화면)은 팀원 4명이 함께 만들었습니다. 그 뒤에 이 fork에서 더한 제조사 그룹 교차검증(`cv/`), 새 test 평가 · 확인용 문서 봉인, Rule Engine 개선, 출력 보정(`core/repair.py`)은 양세윤 개인 확장이며, 경위는 `report/decisions.md`와 `cv/`의 사전 등록 · 보고서에 있습니다.
+
 실제 MSDS 1~3항의 핵심 5개 항목을 고정 JSON으로 추출하는 Qwen3-4B QLoRA 모델, 원문 근거와 검토 상태를 붙이는 Rule Engine, SQLite 적재, 검토 화면을 만드는 4인 팀 과업입니다. 작업공간에는 별도 RAG 인덱스로 1~16항 근거를 검색하는 `MSDS 질의` 화면도 제공합니다. 과업 정의는 기획서 v8(MSDS-PL-2609-08)을 따릅니다. 기획서 원본은 팀 드라이브에만 둡니다.
 
 작업 기준은 `docs/plan.md`(재시작판)이고, 작업 규칙은 `CLAUDE.md`입니다. 두 파일은 `docs/restart` PR로 main에 들어옵니다.
