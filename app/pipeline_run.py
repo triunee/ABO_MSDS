@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -21,6 +22,7 @@ from app.db import connect, init_db, save_extraction  # noqa: E402
 from app.export import export_json  # noqa: E402
 from app.rules.engine import run_rules  # noqa: E402
 from pipeline.extract_text import extract_pdf  # noqa: E402
+from core.repair import DEFAULT_REPAIR, repair_output  # noqa: E402
 from core.schema import check_schema, extract_json  # noqa: E402
 
 def get_text(pdf_path: Path, doc_id: Optional[str]) -> tuple[Optional[str], Optional[str]]:
@@ -116,6 +118,8 @@ def run_pdf(
         return None, None, f"MODEL_UNAVAILABLE: {e}"
 
     parsed_obj, parse_err = extract_json(raw_output)
+    # 출력 보정(core/repair.py): 테이블 · Rule Engine에는 보정본, raw_json에는 모델 원본(raw_output)을 남긴다
+    parsed_obj, repair_used = repair_output(parsed_obj, text)
     if parsed_obj is None:
         parsed = None
         rule_result = {"review_status": "SCHEMA_ERROR", "reason_code": "FORMAT_ERROR", "detail": parse_err}
@@ -127,6 +131,7 @@ def run_pdf(
         else:
             parsed = None
             rule_result = {"review_status": "SCHEMA_ERROR", "reason_code": "SCHEMA_INVALID", "detail": schema_errors}
+    rule_result["repair"] = {"version": DEFAULT_REPAIR, "rules": dict(Counter(repair_used))}
 
     conn = connect(db_path)
     try:

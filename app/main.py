@@ -47,6 +47,7 @@ from app.db import connect, init_db, save_confirmation, save_extraction  # noqa:
 from app.pipeline_run import _log_failure, get_text  # noqa: E402
 from app.rules.engine import run_rules  # noqa: E402
 from app.web_results import CORE_FIELDS, _missing_keys, _pdf_pages, _read_jsonl, build_compare, field_rule_results  # noqa: E402
+from core.repair import DEFAULT_REPAIR, repair_output  # noqa: E402
 from core.schema import check_schema, extract_json  # noqa: E402
 
 DB_DIR = ROOT / "data" / "db"
@@ -90,8 +91,10 @@ def sealed_hashes() -> set[str]:
 
 def ingest(conn, pdf_path: Path, model_name: str, raw: str, text: str, key: str, meta: dict) -> tuple[int, bool]:
     """모델 출력 1건 → 4개 테이블 + meta. → (document_id, 화면에 보일 수 있는지).
-    DB 적재 규칙은 app/pipeline_run.run_pdf와 같다(스키마를 어기면 문서 행만, rule_json에 사유)."""
+    DB 적재 규칙은 app/pipeline_run.run_pdf와 같다(스키마를 어기면 문서 행만, rule_json에 사유).
+    출력 보정(core/repair.py)은 run_pdf와 같다: 테이블 · Rule Engine · 화면에는 보정본, raw_json에는 모델 원본."""
     obj, err = extract_json(raw)
+    obj, repair_used = repair_output(obj, text)
     if obj is None:
         parsed, rule_result = None, {"review_status": "SCHEMA_ERROR", "reason_code": "FORMAT_ERROR", "detail": str(err)}
     else:
@@ -99,6 +102,7 @@ def ingest(conn, pdf_path: Path, model_name: str, raw: str, text: str, key: str,
         parsed = obj if ok else None
         rule_result = (run_rules(obj, source_text=text, doc_id=key) if ok
                        else {"review_status": "SCHEMA_ERROR", "reason_code": "SCHEMA_INVALID", "detail": errors})
+    rule_result["repair"] = {"version": DEFAULT_REPAIR, "rules": {r: repair_used.count(r) for r in sorted(set(repair_used))}}
     shown = obj is not None and not _missing_keys(obj)
     pages = _pdf_pages(pdf_path)
     document_id = save_extraction(conn, pdf_path, model_name, raw, parsed, rule_result)

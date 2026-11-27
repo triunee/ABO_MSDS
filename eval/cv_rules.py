@@ -3,6 +3,7 @@
 
   python3 eval/cv.py report        # 먼저: 모아서 채점(cv/pooled/ · 채점 상세)
   python3 eval/cv_rules.py         # → cv/rules.csv · cv/rules.md
+  python3 eval/cv_rules.py --repair v1   # 출력 보정 뒤(서빙과 같은 입력) → cv/repair_v1/rules.* (cv.py report --repair v1 먼저)
 
 - 틀림: 채점 상세의 문서 완전 정답(확장)이 0인 문서. 필드는 eval/paired.py의 필드별 맞음 · 틀림.
 - 표시: review_status가 OK가 아닌 문서. 필드는 그 필드 경로에 error · warning finding이 있는 경우(info는 표시로 치지 않음).
@@ -19,10 +20,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app.rules.engine import run_rules  # noqa: E402
+from core.repair import REPAIRS, repair_output  # noqa: E402
 from core.schema import extract_json  # noqa: E402
 from eval import cv  # noqa: E402
 from eval.paired import doc_outcomes, read_detail  # noqa: E402
-from eval.score import DETAIL_FILE  # noqa: E402
+from eval.score import detail_file  # noqa: E402
 
 # 채점 필드 → Rule Engine finding 경로의 최상위 키. 성분은 cas · pair · nocas 중 하나라도 틀리면 틀림
 FIELD_MAP = {"product_name": ["product_name_acc"], "ingredients": ["cas", "pair", "nocas"],
@@ -67,12 +69,14 @@ def tally(rows):
     return out
 
 
-def condition_rows(pred_dir, doc_ids):
-    _, details = read_detail(pred_dir / DETAIL_FILE)
+def condition_rows(pred_dir, doc_ids, repair=None):
+    _, details = read_detail(pred_dir / detail_file(repair))
     rows = []
     for d in doc_ids:
         o = doc_outcomes(details[d])
         pred = extract_json((pred_dir / f"{d}.json").read_text(encoding="utf-8"))[0] or {}
+        if repair:
+            pred = repair_output(pred, (cv.TEXT_DIR / f"{d}.txt").read_text(encoding="utf-8"), repair)[0]
         status, fields = judge(pred, d)
         rows.append({"doc_id": d, "wrong": not o["doc_exact_ext"], "status": status, "flag_fields": fields,
                      "wrong_fields": {f for f, ms in FIELD_MAP.items() if any(not o[m] for m in ms)}})
@@ -119,22 +123,24 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", default=str(ROOT / "cv"))
     ap.add_argument("--experiments", default=str(cv.EXPERIMENTS))
+    ap.add_argument("--repair", choices=sorted(REPAIRS), help="출력 보정 뒤 Rule Engine을 돌린다(서빙과 같은 입력)")
     args = ap.parse_args(argv)
     root = Path(args.root)
+    out = root / f"repair_{args.repair}" if args.repair else root
     exp = cv.load_experiments(args.experiments)
     fold_of = cv.read_folds(root)
     doc_ids = sorted(fold_of)
     results = {"gold": tally(gold_rows(doc_ids))}
     for name, c in exp["conditions"].items():
         pred_dir = root / "pooled" / name / cv.INFER_CONDITION[c["type"]] / "val"  # cv.py report가 모아 둔 폴더(읽기만)
-        if not (pred_dir / DETAIL_FILE).exists():
-            print(f"[건너뜀] {name}: 채점 상세 없음 — python3 eval/cv.py report 먼저")
+        if not (pred_dir / detail_file(args.repair)).exists():
+            print(f"[건너뜀] {name}: 채점 상세 없음 — python3 eval/cv.py report{' --repair ' + args.repair if args.repair else ''} 먼저")
             continue
-        results[name] = tally(condition_rows(pred_dir, doc_ids))
-    cv.write_csv(root / "rules.csv", [{"condition": n, **r} for n, r in results.items()],
+        results[name] = tally(condition_rows(pred_dir, doc_ids, args.repair))
+    cv.write_csv(out / "rules.csv", [{"condition": n, **r} for n, r in results.items()],
                  ["condition"] + list(next(iter(results.values()))))
-    write_md(root / "rules.md", results)
-    print((root / "rules.md").read_text(encoding="utf-8"))
+    write_md(out / "rules.md", results)
+    print((out / "rules.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

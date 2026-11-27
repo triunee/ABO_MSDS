@@ -57,6 +57,7 @@ MSDS 1~3항 → 핵심 5필드 고정 JSON 추출(Qwen3-4B QLoRA) + Rule Engine 
   - 이 파일에는 모델이 낸 JSON만 둔다. 파싱 실패도 모델 출력 그대로 저장해 실패로 집계한다.
   - 시간 · 토큰 · 원문 로그는 `.jsonl`로, 채점 상세는 `*.json`이 아닌 이름으로 둔다. 검사기가 폴더의 `*.json`을 모두 검사한다.
 - 프롬프트 버전(`core/prompt.py`의 `PROMPTS`: v1 · v2 · v2_1, 기본 v1): 결과를 만든 버전의 문구는 바꾸지 않고, 고칠 때는 새 버전을 추가한다. v1 밖의 버전은 v1 자리를 덮어쓰지 않도록 따로 둔다 — 출력 `outputs/prompt_{버전}/{조건}/val/`, 점수 `report/scores_prompt_{버전}.csv`, 학습셋 `data/prompt_{버전}/`. 스크립트는 `--prompt {버전}`(학습은 설정 `prompt:`)으로 쓰고, 폴더 · JSONL의 버전이나 문구 해시가 다르면 거부한다.
+- 출력 보정(`core/repair.py`의 `REPAIRS`: v1): 원문 값과 plan 2절 출력 규칙만으로 모델 JSON의 형식 실수를 고친다. 채점 `--repair v1`(점수 행 `{조건}+repair_v1`, 상세 `_score_detail_repair_v1.jsonl`), 교차검증 `eval/cv.py report --repair v1`(→ `cv/repair_v1/`), 서빙은 항상 적용. 출력 파일 · DB `raw_json`에는 보정 전 모델 원본을 둔다. 규칙을 고칠 때는 v1을 바꾸지 않고 새 버전을 추가한다.
 - 전처리: `data/text/{doc_id}.txt`. 실패 기록은 `data/text/_cut_log.csv` + `data/text/review_required/`
 - 점수: `report/scores.csv` (condition, split, subset, metric, value). 평가셋별로 행을 나누고 합산하지 않는다.
 - 짝 비교: `eval/paired.py` → `report/paired.csv`(승 · 패 · 무, 제조사 그룹 부트스트랩 95% 구간). test 봉인: `eval/seal.py` → `report/test_manifest.csv`(내용 해시만, 파일 이름 없음)

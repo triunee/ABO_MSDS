@@ -43,9 +43,10 @@ sys.path.insert(0, str(ROOT))
 
 import yaml  # noqa: E402
 
+from core.repair import REPAIRS  # noqa: E402
 from core.prompt import DEFAULT_PROMPT, prompt_subdir  # noqa: E402
 from eval.paired import FIELDS, compare, doc_outcomes  # noqa: E402
-from eval.score import DETAIL_FILE, check_prompt_version, score_docs  # noqa: E402
+from eval.score import check_prompt_version, detail_file, score_docs  # noqa: E402
 
 SPLITS_CSV = ROOT / "data" / "splits.csv"
 LABEL_DIR = ROOT / "data" / "labels"
@@ -399,14 +400,14 @@ def pool(root, name, ctype, fold_of, partial):
     return dst, sorted(docs)
 
 
-def score_condition(pred_dir, doc_ids, docs):
+def score_condition(pred_dir, doc_ids, docs, repair=None):
     check_prompt_version(pred_dir, DEFAULT_PROMPT)
     out = {}
     for label, subset_of in (("all", {d: "all" for d in doc_ids}), ("form", {d: docs[d]["form"] for d in doc_ids})):
-        accs, _, details = score_docs(doc_ids, subset_of, LABEL_DIR, pred_dir, TEXT_DIR, quiet=True)
+        accs, _, details = score_docs(doc_ids, subset_of, LABEL_DIR, pred_dir, TEXT_DIR, quiet=True, repair=repair)
         out[label] = {s: dict(a.rows()) for s, a in accs.items()}
         if label == "all":
-            with open(pred_dir / DETAIL_FILE, "w", encoding="utf-8") as f:
+            with open(pred_dir / detail_file(repair), "w", encoding="utf-8") as f:
                 f.write(json.dumps({"pooled": True}) + "\n")
                 for d in details.values():
                     f.write(json.dumps(d, ensure_ascii=False, default=list) + "\n")
@@ -501,7 +502,7 @@ def fmt(v, metric=""):
     return str(int(v)) if isinstance(v, float) and v.is_integer() else str(v)
 
 
-def manifest(root, exp, scored):
+def manifest(root, exp, scored, repair=None):
     runs = {}
     for name, c in exp["conditions"].items():
         if c["type"] != "qlora" or name not in scored:
@@ -515,16 +516,19 @@ def manifest(root, exp, scored):
                                            "n_train": m["data"]["n_train"], "result": m.get("result")}
     code = {f: sha256_file(ROOT / f) for f in ("eval/cv.py", "eval/score.py", "eval/paired.py", "eval/infer.py",
                                                 "pipeline/train_qlora.py", "pipeline/build_jsonl.py", "core/prompt.py",
-                                                "core/normalize.py", "src/schema.py", "eval/hazard_class_alias.csv")}
+                                                "core/normalize.py", "core/repair.py", "src/schema.py",
+                                                "eval/hazard_class_alias.csv")}
     return {"created_at": datetime.now().isoformat(timespec="seconds"),
             "folds_csv_sha256": sha256_file(Path(root) / "folds.csv"),
             "experiments_sha256": sha256_file(EXPERIMENTS) if EXPERIMENTS.exists() else None,
-            "conditions": exp["conditions"], "code_sha256": code, "runs": runs}
+            "repair": repair, "conditions": exp["conditions"], "code_sha256": code, "runs": runs}
 
 
 def cmd_report(args):
     exp = load_experiments(args.experiments)
     root = Path(args.root)
+    out = root / f"repair_{args.repair}" if args.repair else root  # 보정 결과는 보정 전 보고서와 섞지 않는다
+    out.mkdir(parents=True, exist_ok=True)
     fold_of = read_folds(root)
     docs = labeled_docs()
     groups = {d: docs[d]["split_group"] for d in docs}
@@ -534,14 +538,14 @@ def cmd_report(args):
         if pred_dir is None:
             skipped[name] = info
             continue
-        scored[name] = {**score_condition(pred_dir, info, docs), "docs": info}
+        scored[name] = {**score_condition(pred_dir, info, docs, args.repair), "docs": info}
     if not scored:
         sys.exit(f"채점할 조건이 없다: {skipped}")
 
     score_rows = [{"condition": n, "subset": s, "metric": m, "value": v}
                   for n, r in scored.items() for part in ("all", "form") for s, ms in r[part].items()
                   for m, v in ms.items()]
-    write_csv(root / "scores.csv", score_rows, ["condition", "subset", "metric", "value"])
+    write_csv(out / "scores.csv", score_rows, ["condition", "subset", "metric", "value"])
 
     paired_rows, consist = [], {}
     for a, b in comparisons(exp):
@@ -558,9 +562,9 @@ def cmd_report(args):
                 continue
             for r in compare(out_a, out_b, groups, ids):
                 paired_rows.append({"a": a, "b": b, "subset": subset, **r})
-    write_csv(root / "paired.csv", paired_rows,
+    write_csv(out / "paired.csv", paired_rows,
               ["a", "b", "subset", "metric", "n_docs", "n_groups", "win", "loss", "tie", "mean_diff", "ci_low", "ci_high"])
-    (root / "manifest.json").write_text(json.dumps(manifest(root, exp, scored), ensure_ascii=False, indent=2) + "\n",
+    (out / "manifest.json").write_text(json.dumps(manifest(root, exp, scored, args.repair), ensure_ascii=False, indent=2) + "\n",
                                         encoding="utf-8")
     prereg = {}
     for name, c in exp["conditions"].items():
@@ -575,7 +579,7 @@ def cmd_report(args):
         outs = {n: {d: doc_outcomes(scored[n]["details"][d]) for d in common} for n in conds}
         prereg[(name, base)] = (rs, bs, seed_mean_verdict(outs, {n: scored[n]["all"]["all"] for n in conds},
                                                          groups, common, rs, bs))
-    write_report(root, exp, scored, skipped, paired_rows, docs, args.partial, consist, prereg)
+    write_report(out, exp, scored, skipped, paired_rows, docs, args.partial, consist, prereg, args.repair)
 
 
 def cmd_stopcheck(args):
@@ -605,18 +609,22 @@ def cmd_stopcheck(args):
     sys.exit(0 if go else 3)
 
 
-def write_report(root, exp, scored, skipped, paired_rows, docs, partial, consist=None, prereg=None):
+def write_report(root, exp, scored, skipped, paired_rows, docs, partial, consist=None, prereg=None, repair=None):
     names = list(scored)
     n_docs = {n: len(scored[n]["docs"]) for n in names}
     n_groups = len({docs[d]["split_group"] for n in names for d in scored[n]["docs"]})
-    lines = ["# 그룹 교차검증 결과", ""]
+    lines = ["# 그룹 교차검증 결과" + (f" — 출력 보정 {repair} 적용" if repair else ""), ""]
+    if repair:
+        lines += [f"> 모든 조건의 출력에 core/repair.py {repair}를 똑같이 적용한 뒤 채점했다. 출력 파일은 그대로이고, "
+                  "보정 전 결과는 cv/report.md에 있다. 이 보정 규칙은 이 45건의 출력을 보고 만들었으므로 수치가 낙관적이다.", ""]
     if partial:
         lines += ["> **부분 결과(--partial)** — 끝난 문서만 채점했다. 보고 수치로 쓰지 않는다.", ""]
     lines += [f"- {exp['folds']['k']}-fold, 제조사 그룹(split_group) 단위, seed {exp['folds']['seed']}. "
               f"문서 {max(n_docs.values())}건 · 그룹 {n_groups}개(train + val 라벨, test 미사용).",
               "- 문서마다 그 문서의 제조사를 학습에서 빼고 만든 모델로 한 번씩 채점했다. 채점 규칙은 eval/score.py와 같다.",
               "- 공식 r1 · test 수치(report/)와 다른 평가 방식이다. 섞어 보지 않는다.",
-              f"- 생성: {datetime.now():%Y-%m-%d %H:%M}, `python3 eval/cv.py report`. 재현 정보는 manifest.json.", ""]
+              f"- 생성: {datetime.now():%Y-%m-%d %H:%M}, `python3 eval/cv.py report{' --repair ' + repair if repair else ''}`. "
+              "재현 정보는 manifest.json.", ""]
     if skipped:
         lines += ["채점하지 않은 조건: " + ", ".join(f"{n}({why})" for n, why in skipped.items()), ""]
     lines += ["## 전체 지표", "", "| 지표 | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
@@ -690,6 +698,7 @@ def main(argv=None):
     sub.add_parser("status", help="진행 상황")
     rp = sub.add_parser("report", help="모아서 채점 · 짝 비교 · 보고서")
     rp.add_argument("--partial", action="store_true", help="끝난 문서만 채점(동작 점검용, 보고 수치 아님)")
+    rp.add_argument("--repair", choices=sorted(REPAIRS), help="출력 보정 버전. 결과는 <root>/repair_{버전}/에 따로 쓴다")
     sc = sub.add_parser("stopcheck", help="중간 멈춤 규칙(cv/prereg_r1_aug.md 3절)")
     sc.add_argument("--recipe", required=True, help="레시피 조건 이름(예: r1_aug)")
     sc.add_argument("--seed", type=int, default=TRAIN_SEED, help=f"먼저 돌린 seed(기본 {TRAIN_SEED})")
