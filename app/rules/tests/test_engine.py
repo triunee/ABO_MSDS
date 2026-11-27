@@ -23,7 +23,7 @@ class TestOutputShape(unittest.TestCase):
         }
         self.assertEqual(set(result.keys()), expected_keys)
         self.assertEqual(result["doc_id"], "FIXTURE-001")
-        self.assertEqual(len(result["checks_run"]), 9)
+        self.assertEqual(len(result["checks_run"]), 10)
         self.assertEqual(set(result["summary"].keys()), {"n_errors", "n_warnings", "n_info"})
 
     def test_finding_and_evidence_shape(self):
@@ -86,6 +86,53 @@ class TestNotFoundCheck(unittest.TestCase):
         result = run_rules(label, BASE_SOURCE_TEXT)
         self.assertIn("VALUE_NOT_FOUND_IN_SOURCE", _codes(result))
         self.assertEqual(result["review_status"], "NEEDS_REVIEW")
+
+
+class TestSourceCodesCheck(unittest.TestCase):
+    def test_clean_label_has_no_source_code_findings(self):
+        result = run_rules(clean_label(), BASE_SOURCE_TEXT)
+        self.assertFalse({c for c in _codes(result) if "IN_SOURCE" in c})
+
+    def test_missing_ingredient_cas_flagged(self):
+        label = clean_label()
+        del label["ingredients"][1]  # 67-56-1은 원문에 있는데 출력에서 빠짐
+        result = run_rules(label, BASE_SOURCE_TEXT)
+        f = [x for x in result["findings"] if x["code"] == "CAS_IN_SOURCE_MISSING"]
+        self.assertEqual(len(f), 1)
+        self.assertEqual(f[0]["field"], "$.ingredients")
+        self.assertEqual(f[0]["detail"]["values"], ["67-56-1"])
+        self.assertEqual(result["review_status"], "NEEDS_REVIEW")
+
+    def test_missing_hcode_flagged(self):
+        label = clean_label()
+        label["hazard_statements"] = []
+        label["list_status"]["hazard_statements"] = "자료없음"
+        result = run_rules(label, BASE_SOURCE_TEXT)
+        self.assertIn("HCODE_IN_SOURCE_MISSING", _codes(result))
+
+    def test_output_hcode_not_in_source_flagged(self):
+        label = clean_label()
+        label["hazard_statements"].append({"code": "H319", "text": "눈에 심한 자극을 일으킴"})
+        result = run_rules(label, BASE_SOURCE_TEXT)
+        f = [x for x in result["findings"] if x["code"] == "HCODE_NOT_IN_SOURCE"]
+        self.assertEqual([x["field"] for x in f], ["$.hazard_statements[1].code"])
+
+    def test_combined_code_split_and_checksum_filters_numbers(self):
+        from app.rules.checks.source_codes import source_cas, source_hcodes
+        text = "H302+H312 삼키거나 피부와 접촉하면 유해함\nEUH066 반복 노출\nH360FD\n" \
+               "전화 02-123-4567, 개정 2020-01-15, 성분 7732-18-5, 7732 - 18 - 5, 틀린 7732-18-6"
+        self.assertEqual(source_hcodes(text), {"H302", "H312", "H360FD"})
+        self.assertEqual(source_cas(text), {"7732-18-5"})
+        label = clean_label()
+        label["hazard_statements"] = [{"code": "H302+H312", "text": "삼키거나 피부와 접촉하면 유해함"}]
+        result = run_rules(label, "H302+H312 삼키거나 피부와 접촉하면 유해함")
+        self.assertNotIn("HCODE_NOT_IN_SOURCE", _codes(result))
+
+    def test_no_source_text_skips(self):
+        label = clean_label()
+        label["ingredients"] = []
+        result = run_rules(label, None)
+        self.assertFalse({c for c in _codes(result) if "IN_SOURCE" in c})
 
 
 class TestCasCheck(unittest.TestCase):

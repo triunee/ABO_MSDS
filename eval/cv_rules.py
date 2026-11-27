@@ -93,7 +93,7 @@ def pct(v):
 
 def write_md(path, results):
     L = ["# Rule Engine 오류 탐지 (교차검증 출력)", "",
-         "- 대상: 그룹 5-fold 교차검증 출력(cv/pooled/) 45건 × 조건별. Rule Engine은 app/rules/(검사 9개) 그대로.",
+         "- 대상: 그룹 5-fold 교차검증 출력(cv/pooled/) 45건 × 조건별. Rule Engine은 app/rules/(검사 10개) 그대로.",
          "- 틀림 = 문서 완전 정답(확장) 0. 표시 = review_status가 OK가 아님(NEEDS_REVIEW · INCONSISTENT · SCHEMA_ERROR).",
          "- gold 행은 정답 라벨을 그대로 넣은 결과다. 원문 모순 · 검사 잡음으로 생기는 표시의 바닥값이다.",
          "- 생성: `python3 eval/cv_rules.py`", "",

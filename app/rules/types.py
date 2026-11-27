@@ -21,6 +21,7 @@ CHECK_NAMES = (
     "phrase_to_hcode",
     "ghs_signal_hcode_consistency",
     "content_sum",
+    "source_codes",
 )
 
 _SEVERITY_ORDER = {"error": 0, "warning": 1, "info": 2}

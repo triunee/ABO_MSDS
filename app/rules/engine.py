@@ -1,5 +1,5 @@
 """
-[김건하] + 양세윤(API 통합) — 9개 검사 → review_status + 사유 코드 + evidence.
+[김건하] + 양세윤(API 통합) — 10개 검사 → review_status + 사유 코드 + evidence.
 출력 모양은 docs/frontend_api_spec.md와 맞춘다. 그 문서를 고치지 않고 여기 모양만
 바꾸지 말 것 — 바꾸면 문서도 같이 갱신한다.
 """
@@ -16,6 +16,7 @@ from .checks import hcode as hcode_check
 from .checks import not_found as not_found_check
 from .checks import phrase_to_hcode as phrase_to_hcode_check
 from .checks import schema as schema_check
+from .checks import source_codes as source_codes_check
 from .types import CHECK_NAMES, CheckContext, Finding, ReviewStatus, sort_findings
 
 _CHECKS = {
@@ -28,6 +29,7 @@ _CHECKS = {
     "phrase_to_hcode": phrase_to_hcode_check.run,
     "ghs_signal_hcode_consistency": consistency_check.run,
     "content_sum": content_sum_check.run,
+    "source_codes": source_codes_check.run,
 }
 
 
@@ -45,7 +47,7 @@ def _decide_review_status(findings: list[Finding]) -> ReviewStatus:
 
 
 def run_rules(label: dict, source_text: Optional[str], doc_id: Optional[str] = None) -> dict:
-    """9개 검사를 모두 돌려 docs/frontend_api_spec.md 모양의 dict를 반환한다."""
+    """10개 검사를 모두 돌려 docs/frontend_api_spec.md 모양의 dict를 반환한다."""
     ctx = CheckContext(source_text=source_text)
 
     findings: list[Finding] = []
