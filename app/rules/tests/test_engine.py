@@ -200,6 +200,47 @@ class TestGhsConsistencyCheck(unittest.TestCase):
         self.assertEqual(info_findings[0]["severity"], "info")
 
 
+class TestGhsConsistencyPartialTable(unittest.TestCase):
+    """대응표에 없는 분류가 섞이면 문서 단위 판정을 남은 분류만으로 하지 않는다."""
+
+    def _mixed(self, signal, codes):
+        label = clean_label()
+        label["ghs_classification"] = [
+            {"hazard_class": "인화성 액체", "category": "구분 3"},       # 표에 있음: 경고 · H226
+            {"hazard_class": "표에없는분류", "category": "구분 1"},       # 표에 없음
+        ]
+        label["signal_word"] = {"value": signal, "source_status": "기재"}
+        label["hazard_statements"] = [{"code": c, "text": "문구"} for c in codes]
+        return run_rules(label, None)
+
+    def test_stronger_signal_and_extra_code_not_flagged(self):
+        result = self._mixed("위험", ["H226", "H999"])  # 위험 · H999는 표에 없는 분류 몫일 수 있음
+        msgs = [f for f in result["findings"] if f["check"] == "ghs_signal_hcode_consistency" and f["severity"] == "error"]
+        self.assertEqual(msgs, [])
+        self.assertIn("COMPLETENESS_SKIPPED", _codes(result))
+
+    def test_weaker_signal_still_flagged(self):
+        label = clean_label()
+        label["ghs_classification"] = [
+            {"hazard_class": "인화성 액체", "category": "구분 2"},       # 표에 있음: 위험
+            {"hazard_class": "표에없는분류", "category": "구분 1"},
+        ]
+        label["signal_word"] = {"value": "경고", "source_status": "기재"}
+        result = run_rules(label, None)
+        f = [x for x in result["findings"] if x["code"] == "SIGNAL_WORD_MISMATCH"]
+        self.assertEqual(len(f), 1)
+        self.assertTrue(f[0]["detail"]["at_least"])
+        self.assertEqual(result["review_status"], "INCONSISTENT")
+
+    def test_all_in_table_keeps_full_check(self):
+        label = clean_label()
+        label["hazard_statements"].append({"code": "H319", "text": "눈에 심한 자극을 일으킴"})
+        result = run_rules(label, None)
+        f = [x for x in result["findings"] if x["code"] == "HCODE_MISSING_FOR_CLASSIFICATION"]
+        self.assertEqual(f[0]["detail"]["unexplained_codes"], ["H319"])
+        self.assertNotIn("COMPLETENESS_SKIPPED", _codes(result))
+
+
 class TestContentSumCheck(unittest.TestCase):
     def test_lower_bound_sum_exceeds_100(self):
         label = clean_label()
