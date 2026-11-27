@@ -1,0 +1,161 @@
+{
+  "name": "cv_r1_s43_f1",
+  "smoke": false,
+  "created_at": "2026-10-31T19:04:12",
+  "git": {
+    "commit": "d5e09fb",
+    "dirty": true
+  },
+  "config": {
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "seed": 43,
+    "gradient_checkpointing": true,
+    "prompt": "v1",
+    "model": "Qwen/Qwen3-4B",
+    "model_revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "lora_r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj"
+    ],
+    "learning_rate": 0.0002,
+    "num_epochs": 2,
+    "per_device_batch_size": 1,
+    "grad_accum": 8,
+    "max_length": 4096,
+    "train_jsonl": "cv/data/r1_s43/fold1/train.jsonl",
+    "val_jsonl": "cv/data/r1_s43/fold1/val.jsonl",
+    "build_report": "cv/data/r1_s43/fold1/build_report.json",
+    "splits": "cv/fold1/splits.csv"
+  },
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "env": {
+    "torch": "2.14.0+cu130",
+    "transformers": "5.17.0",
+    "peft": "0.21.0",
+    "bitsandbytes": "0.50.2",
+    "accelerate": "1.15.0",
+    "gpu": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "gpu_mem_gib": 8.0
+  },
+  "model_commit": "1cfa9a7208912126459214e8b04321603b3df60c",
+  "data": {
+    "train_jsonl": "cv/data/r1_s43/fold1/train.jsonl",
+    "train_jsonl_sha256": "f5b8dc677b6854ac120cb4fe857613c67693377d903393ce383fee98150dac7a",
+    "val_jsonl": "cv/data/r1_s43/fold1/val.jsonl",
+    "val_jsonl_sha256": "706af690e3e28b583343d28ba3e19a195f763eac8b09b3fa92d3a3dfd2c922fb",
+    "splits": "cv/fold1/splits.csv",
+    "splits_sha256": "920a7c7334b4a1ce67d21be51a53c1c5f8276fc43cd979abadb09cfb19bc033d",
+    "n_train": 287,
+    "n_val": 63,
+    "dropped_over_max_length": {
+      "train": [],
+      "val": []
+    }
+  },
+  "augmentation": {
+    "matches_train_jsonl": true,
+    "labels_unchanged_since_build": true,
+    "splits_unchanged_since_build": true,
+    "matches_val_jsonl": true,
+    "val_labels_unchanged_since_build": true,
+    "build_args": {
+      "seed": 42,
+      "secret": 1,
+      "renderers": 6,
+      "ecnum": false,
+      "max_length": 4096
+    },
+    "docs": 36,
+    "examples": 287,
+    "multiplier_incl_orig": 7.97,
+    "variants": {
+      "bullet": 22,
+      "caslabel": 35,
+      "colon": 35,
+      "nohcode": 24,
+      "orig": 36,
+      "pagehdr": 35,
+      "secret": 30,
+      "section": 35,
+      "subnum": 35
+    },
+    "by_form": {
+      "구서식": {
+        "docs": 6,
+        "examples": 44
+      },
+      "수입품 국문판": {
+        "docs": 8,
+        "examples": 56
+      },
+      "현행": {
+        "docs": 22,
+        "examples": 187
+      }
+    },
+    "docs_with": {
+      "영업비밀": 7,
+      "H코드없음": 4
+    },
+    "examples_with": {
+      "영업비밀": 79,
+      "H코드없음": 53
+    },
+    "checks": {
+      "train_val_doc_overlap": [],
+      "val_variants_in_train": 0
+    },
+    "tokens": {
+      "max_length": 4096,
+      "p50": 2238,
+      "p90": 2934,
+      "p95": 3715,
+      "max": 3948,
+      "mean": 2333.3,
+      "longest": "KR-NEOGEN-002:pagehdr"
+    },
+    "over_limit": [],
+    "n_rejected": 19,
+    "code_sha256": {
+      "core/prompt.py": "f3935291229eaccf0cb484acfe3201fb544f595a32c0f32393e2814a334677b4",
+      "core/schema.py": "72e754657bcc858445d1d4ec889b82940cabe89892470f384199a7be5e5679f3",
+      "src/schema.py": "b77b118b3b9164e8da3ed432976bed3aed53f0482cd8b81d7409a67f8099a51b",
+      "pipeline/build_jsonl.py": "f15ce175e2d16a4d60ae4b3eb568580a91f454fc896b29bf1277d30f8771172d",
+      "pipeline/guard.py": "36a8d7dcf2d0337de9b4b5763ac7adab0774b6008453c8d3ca5abb95530e7b95",
+      "pipeline/augment/renderers.py": "00a377ea8ddcd6c587a5e2bac74ba00addd75897973a460876b62814611313a2",
+      "pipeline/augment/mutators.py": "7b8e3f80b7b776ef84f3f253d64682e90a755542a518a59f629adb370e3de6b2",
+      "pipeline/augment/check_forbidden.py": "379cf8ecc96f5e76f167422d5d669f135afe9c0938025e97e29028ca05572de3"
+    },
+    "prompt": {
+      "version": "v1",
+      "text_sha256": "26078435ce82383c7a02c0a4b04753cb88a3b5ab05fd7ea985081e155a82b8d7"
+    }
+  },
+  "schedule": {
+    "batch": 1,
+    "grad_accum": 8,
+    "effective_batch": 8,
+    "steps_per_epoch": 35,
+    "optimizer_steps": 70,
+    "tail_microbatches_dropped_per_epoch": 7
+  },
+  "result": {
+    "optimizer_steps_done": 70,
+    "train_seconds": 4049,
+    "seconds_per_step": 57.8,
+    "peak_gpu_memory": {
+      "allocated_gib": 6.35,
+      "reserved_gib": 7.42
+    },
+    "finished_at": "2026-10-31T20:07:28"
+  }
+}

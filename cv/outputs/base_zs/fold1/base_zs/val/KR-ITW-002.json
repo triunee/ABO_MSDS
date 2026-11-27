@@ -1,0 +1,9 @@
+{"product_name":{"value":"Devweld 531 접착제","source_status":"기재"},
+"recommended_use":{"value":null,"source_status":"자료없음"},
+"use_restrictions":{"value":null,"source_status":"자료없음"},
+"supplier":{"company_name":"ITW Performance Polymers","address":"Bay 150\nShannon Industrial Estate\nCo, Clare, 아일랜드","emergency_phone":"44(0)1235 239 670"},
+"ingredients":[{"chemical_name":"메틸 메타크릴레이트","cas_number":"80-62-6","ke_number":"KE-25050","content":"30-60%","is_substitute_data":false},{"chemical_name":"말레산","cas_number":"110-16-7","ke_number":"KE-13657","content":"5-10%","is_substitute_data":false},{"chemical_name":"보고가능 수준보다 낮은 기타 성분", "cas_number":null,"ke_number":null,"content":null,"is_substitute_data":true}],
+"ghs_classification":[{"hazard_class":"인화성 액체","category":"구분 2"},{"hazard_class":"피부 부식성/자극성","category":"구분 2"},{"hazard_class":"피부 과민성","category":"구분 1"},{"hazard_class":"수생환경 유해성, 만성","category":"구분 3"}],
+"signal_word":{"value":"위험","source_status":"기재"},
+"hazard_statements":[{"code":"H225","text":"고인화성 액체 및 증기."},{"code":"H315","text":"피부에 자극을 일으킴"},{"code":"H317","text":"알레르기성 피부 반응을 일으킬 수 있음."},{"code":"H412","text":"장기적 영향에 의해 수생생물에 유해함."}],
+"list_status":{"ingredients":"기재","ghs_classification":"기재","hazard_statements":"기재"}}

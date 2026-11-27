@@ -206,3 +206,36 @@ class TestCliOnRealPdf(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRunPdfRepair(unittest.TestCase):
+    """[양세윤] run_pdf: 테이블 · Rule Engine에는 보정본(core/repair.py), raw_json에는 모델 원본이 들어가는지.
+    PDF 추출 · 모델은 가짜로 바꿔 끼워 pdfplumber · GPU 없이 돈다."""
+
+    def test_repaired_tables_raw_json_original(self):
+        import importlib
+        from unittest import mock
+
+        # pipeline.extract_text가 불러올 때 pdfplumber를 import한다. 이 테스트는 PDF를 읽지 않으므로 가짜로 둔다
+        with mock.patch.dict(sys.modules, {"pdfplumber": sys.modules.get("pdfplumber") or mock.MagicMock()}):
+            pipeline_run = importlib.import_module("app.pipeline_run")
+
+        label = _load(ALL_LABEL_FILES[0].stem)
+        label["hazard_statements"] = [{"code": "17", "text": "알레르기성 피부 반응을 일으킬 수 있음"}]
+        label["list_status"]["hazard_statements"] = "기재"
+        raw = json.dumps(label, ensure_ascii=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf = Path(tmp) / "x.pdf"
+            pdf.write_bytes(b"%PDF fake")
+            with mock.patch.object(pipeline_run, "get_text", return_value=("원문 텍스트", None)), \
+                    mock.patch.object(pipeline_run, "predict", return_value=raw):
+                doc_id, _, fail = pipeline_run.run_pdf(pdf, "qlora", db_path=Path(tmp) / "t.db", out_dir=Path(tmp) / "out")
+            self.assertIsNone(fail)
+            conn = connect(Path(tmp) / "t.db")
+            row = conn.execute("SELECT raw_json, rule_json FROM msds_documents WHERE id = ?", (doc_id,)).fetchone()
+            codes = [r["code"] for r in conn.execute("SELECT code FROM msds_hazard_statements WHERE document_id = ?",
+                                                    (doc_id,))]
+            conn.close()
+        self.assertEqual(row["raw_json"], raw)                       # 모델 원본 그대로
+        self.assertEqual(codes, [None])                               # 깨진 코드 "17" → null(R3)
+        self.assertEqual(json.loads(row["rule_json"])["repair"], {"version": "v1", "rules": {"R3": 1}})

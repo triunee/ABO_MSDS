@@ -132,5 +132,64 @@ class SealTest(unittest.TestCase):
         self.assertIn("저장소 밖", str(code))
 
 
+
+class KeyedSealTest(SealTest):
+    """비밀 키 해시(--key-file) · 종류 골라 덧붙이기(--kinds) · SEAL_KEY_FILE 게이트"""
+
+    def setUp(self):
+        super().setUp()
+        self.key = self.tmp / "key.txt"
+        self.key.write_text("k" * 64, encoding="utf-8")
+
+    def rows(self):
+        return [tuple(line.split(",")) for line in self.manifest.read_text(encoding="utf-8").splitlines()[1:]]
+
+    def test_keyed_text_appended_and_not_plain(self):
+        self.assertEqual(self.run_seal("--write", *self.paths, "--kinds", "label,subset,group")[0], 0)
+        before = self.rows()
+        code, out = self.run_seal("--write", *self.paths, "--kinds", "text", "--key-file", str(self.key))
+        self.assertEqual(code, 0, out)
+        rows = self.rows()
+        self.assertEqual(rows[:len(before)], before)          # 기존 줄은 그대로
+        kinds = [k for k, _ in rows]
+        self.assertNotIn("text", kinds)
+        self.assertEqual(kinds.count("text_hmac"), 3)
+        self.assertEqual(kinds.count("text_hmac_set"), 1)
+        plain = {seal.sha256_bytes(p.read_bytes()) for p in (self.tmp / "t" / "text").glob("*.txt")}
+        self.assertFalse(plain & {h for _, h in rows})        # 키 없이 만든 해시와 겹치지 않음
+        code, out = self.run_seal("--verify", *self.paths, "--kinds", "text", "--key-file", str(self.key))
+        self.assertEqual(code, 0, out)
+
+    def test_wrong_key_or_changed_text_fails(self):
+        self.run_seal("--write", *self.paths, "--kinds", "text", "--key-file", str(self.key))
+        other = self.tmp / "other.txt"
+        other.write_text("z" * 64, encoding="utf-8")
+        self.assertEqual(self.run_seal("--verify", *self.paths, "--kinds", "text", "--key-file", str(other))[0], 1)
+        f = next((self.tmp / "t" / "text").glob("*.txt"))
+        f.write_text(f.read_text(encoding="utf-8") + " ", encoding="utf-8")
+        self.assertEqual(self.run_seal("--verify", *self.paths, "--kinds", "text", "--key-file", str(self.key))[0], 1)
+
+    def test_same_kind_twice_refused(self):
+        self.run_seal("--write", *self.paths, "--kinds", "text", "--key-file", str(self.key))
+        code, _ = self.run_seal("--write", *self.paths, "--kinds", "text", "--key-file", str(self.key))
+        self.assertNotEqual(code, 0)
+
+    def test_require_sealed_uses_env_key(self):
+        self.run_seal("--write", *self.paths, "--kinds", "text", "--key-file", str(self.key))
+        text_dir = self.paths[self.paths.index("--text-dir") + 1]
+        with mock.patch.dict("os.environ", {}, clear=False):
+            import os
+            os.environ.pop("SEAL_KEY_FILE", None)
+            with self.assertRaises(SystemExit):
+                seal.require_sealed("text", text_dir)
+            os.environ["SEAL_KEY_FILE"] = str(self.key)
+            seal.require_sealed("text", text_dir)              # 키로 대조해 통과(멈추지 않음)
+
+    def test_short_key_refused(self):
+        self.key.write_text("short", encoding="utf-8")
+        code, _ = self.run_seal("--write", *self.paths, "--kinds", "text", "--key-file", str(self.key))
+        self.assertNotEqual(code, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

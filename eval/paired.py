@@ -215,7 +215,7 @@ def gate_test(args):
         v = getattr(args, name)
         if not v or not outside_repo(v):
             sys.exit(f"[거부] test는 저장소 밖 --{name.replace('_', '-')}가 필요하다")
-    require_sealed("group", args.groups_csv)
+    require_sealed("group", args.groups_csv, args.manifest)
 
 
 def main(argv=None):
@@ -234,6 +234,7 @@ def main(argv=None):
     ap.add_argument("--n-boot", type=int, default=N_BOOT)
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--no-write", action="store_true", help="report/paired.csv에 쓰지 않음")
+    ap.add_argument("--manifest", help="test 봉인 기록(기본 report/test_manifest.csv = 팀 test)")
     args = ap.parse_args(argv)
 
     is_test = args.split == "test"

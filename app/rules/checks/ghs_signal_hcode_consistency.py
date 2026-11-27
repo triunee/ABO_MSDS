@@ -5,6 +5,12 @@ app/rules/tables/classification_signal_word.csv로 각 (분류명, 구분)의 �
 H코드를 찾아 문서 실제값과 대조한다. docs/labeling_review_notes.md B절의 "원문 자체가
 모순인 문서"가 여기서 INCONSISTENT로 잡혀야 한다.
 
+문서 단위 판정(신호어 · 분류로 설명 안 되는 코드)은 모든 분류가 대응표에 있을 때만 한다. 표에 없는
+분류가 하나라도 있으면 그 분류의 신호어 · H코드를 모르므로, 남은 분류만으로 판정하면 오경보가 난다
+(예: 표에 없는 '위험' 분류를 빼고 '경고'를 기대, 그 분류의 H코드를 '설명 안 되는 코드'로 표시).
+이때는 COMPLETENESS_SKIPPED(info)를 남기고, 신호어는 아는 분류만으로 본 기대보다 실제가 약할 때만 표시한다
+(표에 없는 분류는 기대 신호어를 올릴 수만 있으므로 이 경우는 여전히 모순이다). 분류별 판정(HCODE_MISSING_FOR_CLASSIFICATION)은 그대로 한다.
+
 알려진 한계: "H302+H312+H332" 같은 조합 코드는 구성 코드별로 풀어서 대조하지 않는다
 (app/rules/tables/README.md 참고).
 """
@@ -62,6 +68,7 @@ def run(label: dict, ctx: CheckContext) -> list[Finding]:
     expected_signal_rank = 0
     all_expected_codes: set[str] = set()
     matched_any = False
+    unmatched: list[str] = []
 
     for i, c in enumerate(classifications):
         raw_class = c.get("hazard_class") or ""
@@ -71,6 +78,7 @@ def run(label: dict, ctx: CheckContext) -> list[Finding]:
         path = f"$.ghs_classification[{i}]"
 
         if entry is None:
+            unmatched.append(f"{raw_class} {category}".strip())
             findings.append(
                 Finding(
                     check="ghs_signal_hcode_consistency",
@@ -103,7 +111,33 @@ def run(label: dict, ctx: CheckContext) -> list[Finding]:
                 )
             )
 
-    if matched_any:
+    if matched_any and unmatched:
+        if _SIGNAL_RANK.get(actual_signal, 0) < expected_signal_rank:
+            expected_signal = _RANK_TO_SIGNAL[expected_signal_rank]
+            findings.append(
+                Finding(
+                    check="ghs_signal_hcode_consistency",
+                    severity="error",
+                    code="SIGNAL_WORD_MISMATCH",
+                    field="$.signal_word.value",
+                    message=(
+                        f"분류로 미루어 신호어는 적어도 '{expected_signal}'이어야 하는데 "
+                        f"문서는 '{actual_signal or '없음/해당없음'}'입니다."
+                    ),
+                    detail={"expected": expected_signal, "actual": actual_signal, "at_least": True},
+                )
+            )
+        findings.append(
+            Finding(
+                check="ghs_signal_hcode_consistency",
+                severity="info",
+                code="COMPLETENESS_SKIPPED",
+                field="$.signal_word.value",
+                message="대응표에 없는 분류가 있어 '분류로 설명 안 되는 H코드' 판정을 건너뛰고, 신호어는 기대보다 약할 때만 봅니다.",
+                detail={"unmatched_classifications": unmatched},
+            )
+        )
+    elif matched_any:
         expected_signal = _RANK_TO_SIGNAL[expected_signal_rank]
         if expected_signal != actual_signal:
             findings.append(

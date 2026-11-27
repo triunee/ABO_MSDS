@@ -46,3 +46,25 @@ runs/deploy_smoke/
 runs/**/merged*/
 runs/**/quark_*/
 runs/**/adapter/
+
+# 그룹 교차검증(eval/cv.py) — fold 학습셋 · 어댑터 · 모은 출력 사본 · 실행 로그는 커밋하지 않음
+cv/data/
+cv/runs/**/adapter/
+cv/pooled/
+cv/logs/
+cv/.lock
+cv/*.out
+cv/perturb/text/
+cv/perturb/pooled/
+cv/perturb/.lock
+cv/perturb/*.out
+# RunPod 재실행(cv/runpod/, scripts/runpod/) — 위와 같은 규칙. hardware.txt · report · scores · outputs · config.json · loss.csv만 커밋
+cv/runpod/data/
+cv/runpod/runs/**/adapter/
+cv/runpod/pooled/
+cv/runpod/logs/
+cv/runpod/.lock
+cv/runpod/*.out
+cv/runpod/perturb/text/
+cv/runpod/perturb/pooled/
+cv/runpod/perturb/.lock

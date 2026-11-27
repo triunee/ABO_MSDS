@@ -22,6 +22,8 @@ train (문서마다)
   secret ×k     성분 하나를 영업비밀로 가림, 라벨도 같이 바꿈 (mutators.py)
   nohcode ×1    H코드를 지움, 라벨 code → null
   ecnum ×1      --ecnum일 때만. CAS 뒤에 EC 번호 칸을 끼움, 라벨 동일
+  <겨냥 렌더러> --targeted일 때만. renderers.TARGETED_RENDERERS 4종(값 공백 · 비해당 표현 · 구분 표기 · 줄 잇기), 라벨 동일.
+                문서마다 따로 둔 난수를 써서, 켜도 나머지 예시는 끈 세트와 글자까지 같다(r1 → r1_aug는 예시 추가만)
 val (문서마다)
   orig + 렌더러 전부. 내용 변형은 넣지 않는다 — val은 실제 분포를 봐야 한다.
 
@@ -53,7 +55,7 @@ from core.prompt import (  # noqa: E402
 from core.schema import check_schema  # noqa: E402
 from pipeline.augment.check_forbidden import check  # noqa: E402
 from pipeline.augment.mutators import MUTATORS  # noqa: E402
-from pipeline.augment.renderers import RENDERERS  # noqa: E402
+from pipeline.augment.renderers import RENDERERS, TARGETED_RENDERERS  # noqa: E402
 from pipeline.guard import load_splits, refuse_sealed, require_splits  # noqa: E402
 
 TRIES = 6
@@ -111,6 +113,10 @@ def variants_for(doc_id, text, label, rng, split, args):
     add("nohcode", lambda: MUTATORS["nohcode"](text, label, rng), True)
     if args.ecnum:
         add("ecnum", lambda: MUTATORS["ecnum"](text, label, rng), True)
+    if args.targeted:
+        trng = random.Random(f"{args.seed}-targeted-{doc_id}")  # split 난수를 건드리지 않는다
+        for name, fn in TARGETED_RENDERERS.items():
+            add(name, lambda fn=fn: (lambda t: None if t is None else (t, label, ()))(fn(text, trng)), False)
     if args.renderers < len(RENDERERS):
         # 렌더러 변형만 덜어낸다. 난수를 따로 써서, 나머지 예시(orig · 내용 변형)는 기본 세트와 글자까지 같게
         keep = set(random.Random(f"renderers-{doc_id}").sample(list(RENDERERS), args.renderers))
@@ -235,6 +241,7 @@ def main():
     ap.add_argument("--secret", type=int, default=2, help="train 문서당 영업비밀 변형 수")
     ap.add_argument("--renderers", type=int, default=len(RENDERERS), help="train 문서당 렌더러 변형 수(val은 늘 전부)")
     ap.add_argument("--ecnum", action="store_true", help="EC 칸 변형 켜기(기본 끔, mutators.add_ec_column 참고)")
+    ap.add_argument("--targeted", action="store_true", help="오류 겨냥 렌더러 4종 켜기(기본 끔, train만, cv/prereg_r1_aug.md)")
     ap.add_argument("--splits", default=str(ROOT / "data" / "splits.csv"))
     ap.add_argument("--label-dir", default=str(ROOT / "data" / "labels"))
     ap.add_argument("--text-dir", default=str(ROOT / "data" / "text"))

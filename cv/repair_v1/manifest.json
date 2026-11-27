@@ -1,0 +1,340 @@
+{
+  "created_at": "2026-11-27T16:40:48",
+  "folds_csv_sha256": "2e496da2c110876ae674b57607d856d43b39e228dd9148fb7f7a322b0e71fdca",
+  "experiments_sha256": "8652bf437522112099fc980dd3be6ca72855ba2cd7d0cb75777364d504ad0c7b",
+  "repair": "v1",
+  "conditions": {
+    "base_zs": {
+      "type": "base_zs"
+    },
+    "base_fs": {
+      "type": "base_fs"
+    },
+    "r1": {
+      "type": "qlora"
+    },
+    "r1_s43": {
+      "type": "qlora",
+      "train": {
+        "seed": 43
+      },
+      "replicate_of": "r1"
+    },
+    "r1_aug": {
+      "type": "qlora",
+      "build": {
+        "targeted": true
+      }
+    },
+    "r1_aug_s43": {
+      "type": "qlora",
+      "build": {
+        "targeted": true
+      },
+      "train": {
+        "seed": 43
+      },
+      "replicate_of": "r1_aug"
+    }
+  },
+  "code_sha256": {
+    "eval/cv.py": "f1a948cf2f7e4cb07e8cb3f380db656c2a20d89f70e2f78cbf649bfd71cf2fa0",
+    "eval/score.py": "a02c0b1f0498af18a4f30e7ecafcee8ceb196a19c9cc5d934a659b61c0072a60",
+    "eval/paired.py": "6534adbf3e8fc3abe75637a99855c35ddd484fb30015e5e45433eb74dffffdb7",
+    "eval/infer.py": "db9f87a326a77aa889a127ea568b91aa5c3b38de36eef49ceaa0499e3c6eae24",
+    "pipeline/train_qlora.py": "29274f891d70703f1fa07d5d3e697d7350102802daee691cfdfe7aa7a174f2a9",
+    "pipeline/build_jsonl.py": "aacbfe553a958235bdfba526f0d1700e5b3eee5f928325589180253459185b2b",
+    "core/prompt.py": "f3935291229eaccf0cb484acfe3201fb544f595a32c0f32393e2814a334677b4",
+    "core/normalize.py": "74ee81615dedfd09871d5f636a8f2908bfd8e06a1c585ec6a6722e72a95e94a7",
+    "core/repair.py": "ebb2b69759fa445895ecddd392c2790665d915a46fb44cdd1554877bc450f4e8",
+    "src/schema.py": "b77b118b3b9164e8da3ed432976bed3aed53f0482cd8b81d7409a67f8099a51b",
+    "eval/hazard_class_alias.csv": "a4ed580baac19112b3210e4789796b14539a316978f66da233ebbaefee139aad"
+  },
+  "runs": {
+    "r1/fold0": {
+      "git": {
+        "commit": "3f5f0c0",
+        "dirty": false
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "b078f687efbe77b8edce32180eb3a8e7432ef70946901f5ee9c2da1414be62d5",
+      "n_train": 294,
+      "result": {
+        "optimizer_steps_done": 72,
+        "train_seconds": 4033,
+        "seconds_per_step": 56.0,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 7.98
+        },
+        "finished_at": "2026-10-30T17:38:05"
+      }
+    },
+    "r1/fold1": {
+      "git": {
+        "commit": "3f5f0c0",
+        "dirty": false
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "f5b8dc677b6854ac120cb4fe857613c67693377d903393ce383fee98150dac7a",
+      "n_train": 287,
+      "result": {
+        "optimizer_steps_done": 70,
+        "train_seconds": 4287,
+        "seconds_per_step": 61.2,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.34,
+          "reserved_gib": 9.43
+        },
+        "finished_at": "2026-10-30T18:52:38"
+      }
+    },
+    "r1/fold2": {
+      "git": {
+        "commit": "3f5f0c0",
+        "dirty": false
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "08ac8501f65fe73070d59dbef62c3764b679e314090a18a911b2d31d0293c06c",
+      "n_train": 291,
+      "result": {
+        "optimizer_steps_done": 72,
+        "train_seconds": 4103,
+        "seconds_per_step": 57.0,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 8.16
+        },
+        "finished_at": "2026-10-30T20:01:56"
+      }
+    },
+    "r1/fold3": {
+      "git": {
+        "commit": "3f5f0c0",
+        "dirty": false
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "ba3ec4a890d1cb6dd5ba9337e606a040e8b343f533d6f968466d3eea80b26f93",
+      "n_train": 287,
+      "result": {
+        "optimizer_steps_done": 70,
+        "train_seconds": 3816,
+        "seconds_per_step": 54.5,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.1,
+          "reserved_gib": 7.08
+        },
+        "finished_at": "2026-10-30T21:06:51"
+      }
+    },
+    "r1/fold4": {
+      "git": {
+        "commit": "3f5f0c0",
+        "dirty": false
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "662693db5e72c5727ed145b1360c430616e0c5ac2bc4ba836d483e147b310cf3",
+      "n_train": 293,
+      "result": {
+        "optimizer_steps_done": 72,
+        "train_seconds": 4035,
+        "seconds_per_step": 56.0,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 9.67
+        },
+        "finished_at": "2026-10-30T22:21:04"
+      }
+    },
+    "r1_s43/fold0": {
+      "git": {
+        "commit": "d5e09fb",
+        "dirty": true
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "b078f687efbe77b8edce32180eb3a8e7432ef70946901f5ee9c2da1414be62d5",
+      "n_train": 294,
+      "result": {
+        "optimizer_steps_done": 72,
+        "train_seconds": 4264,
+        "seconds_per_step": 59.2,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 11.41
+        },
+        "finished_at": "2026-10-31T18:27:53"
+      }
+    },
+    "r1_s43/fold1": {
+      "git": {
+        "commit": "d5e09fb",
+        "dirty": true
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "f5b8dc677b6854ac120cb4fe857613c67693377d903393ce383fee98150dac7a",
+      "n_train": 287,
+      "result": {
+        "optimizer_steps_done": 70,
+        "train_seconds": 4049,
+        "seconds_per_step": 57.8,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 7.42
+        },
+        "finished_at": "2026-10-31T20:07:28"
+      }
+    },
+    "r1_s43/fold2": {
+      "git": {
+        "commit": "d5e09fb",
+        "dirty": true
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "08ac8501f65fe73070d59dbef62c3764b679e314090a18a911b2d31d0293c06c",
+      "n_train": 291,
+      "result": {
+        "optimizer_steps_done": 72,
+        "train_seconds": 3836,
+        "seconds_per_step": 53.3,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 7.32
+        },
+        "finished_at": "2026-11-01T01:26:00"
+      }
+    },
+    "r1_s43/fold3": {
+      "git": {
+        "commit": "d5e09fb",
+        "dirty": true
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "ba3ec4a890d1cb6dd5ba9337e606a040e8b343f533d6f968466d3eea80b26f93",
+      "n_train": 287,
+      "result": {
+        "optimizer_steps_done": 70,
+        "train_seconds": 3724,
+        "seconds_per_step": 53.2,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.1,
+          "reserved_gib": 9.62
+        },
+        "finished_at": "2026-11-01T03:15:42"
+      }
+    },
+    "r1_s43/fold4": {
+      "git": {
+        "commit": "d5e09fb",
+        "dirty": true
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "662693db5e72c5727ed145b1360c430616e0c5ac2bc4ba836d483e147b310cf3",
+      "n_train": 293,
+      "result": {
+        "optimizer_steps_done": 72,
+        "train_seconds": 4221,
+        "seconds_per_step": 58.6,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 8.83
+        },
+        "finished_at": "2026-11-01T14:12:26"
+      }
+    },
+    "r1_aug/fold0": {
+      "git": {
+        "commit": "bb81da1",
+        "dirty": false
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "e8fd07893baac45f20156b3b7627d671bd260431ff785bbc5ee9d88a95c3efe8",
+      "n_train": 387,
+      "result": {
+        "optimizer_steps_done": 96,
+        "train_seconds": 5251,
+        "seconds_per_step": 54.7,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 8.45
+        },
+        "finished_at": "2026-11-02T04:58:39"
+      }
+    },
+    "r1_aug/fold1": {
+      "git": {
+        "commit": "84c5579",
+        "dirty": false
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "4ebf9de3d810ea84df8b17316a553e3dd78bc328f7121bc74f6886b81eb5a223",
+      "n_train": 370,
+      "result": {
+        "optimizer_steps_done": 92,
+        "train_seconds": 4763,
+        "seconds_per_step": 51.8,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.34,
+          "reserved_gib": 8.73
+        },
+        "finished_at": "2026-11-02T12:28:58"
+      }
+    },
+    "r1_aug/fold2": {
+      "git": {
+        "commit": "84c5579",
+        "dirty": false
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "1d012baf2c490ffabe881dbc8b7fd32915e7a24719ae92543508d70530f18701",
+      "n_train": 376,
+      "result": {
+        "optimizer_steps_done": 94,
+        "train_seconds": 4719,
+        "seconds_per_step": 50.2,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 7.4
+        },
+        "finished_at": "2026-11-02T16:33:18"
+      }
+    },
+    "r1_aug/fold3": {
+      "git": {
+        "commit": "84c5579",
+        "dirty": false
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "14cbc64b738fde965663e24e2913ea833c78d619de356d4cd3eab9e147c26564",
+      "n_train": 365,
+      "result": {
+        "optimizer_steps_done": 90,
+        "train_seconds": 4526,
+        "seconds_per_step": 50.3,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.1,
+          "reserved_gib": 9.15
+        },
+        "finished_at": "2026-11-02T22:32:37"
+      }
+    },
+    "r1_aug/fold4": {
+      "git": {
+        "commit": "84c5579",
+        "dirty": false
+      },
+      "smoke": false,
+      "train_jsonl_sha256": "fb948da72ab040d955ff255f46251dc60666df312eddb50c84a4890a299d0f0c",
+      "n_train": 378,
+      "result": {
+        "optimizer_steps_done": 94,
+        "train_seconds": 5107,
+        "seconds_per_step": 54.3,
+        "peak_gpu_memory": {
+          "allocated_gib": 6.35,
+          "reserved_gib": 8.54
+        },
+        "finished_at": "2026-11-03T06:29:53"
+      }
+    }
+  }
+}

@@ -41,6 +41,8 @@ report/scores.csv에 섞이지 않게(docs/deploy_quant_plan.md 6절). test에�
 - ke_number·chemical_name·supplier 등 참고 필드는 채점하지 않는다.
 - test는 --allow-test · 실험 고정(eval/experiment.json) · 저장소 밖 정답 · 서식 목록 · 텍스트 · 출력 폴더 · 봉인 대조
   (eval/seal.py) · 모든 문서의 출력 존재를 확인한 뒤에만 정답을 읽는다. 문서별 상세(정답 값 포함)는 출력 폴더(저장소 밖)에만 쓴다.
+- 다른 test 세트(cv/prereg_newtest.md): --experiment · --manifest로 그 세트의 고정 파일 · 봉인을 쓴다. 이때 점수는
+  report/scores.csv에 쓰지 않고 저장소 밖 <out-root>/_scores.csv(또는 저장소 밖 --scores-csv)에 쓴다(팀 기록과 섞지 않음).
 - test 최초 채점: 비교군마다 처음 채점한 결과를 _score_first.jsonl(메타 + 지표)과 _score_detail_first.jsonl로
   따로 남기고 읽기 전용으로 둔다. 다시 채점해도(별칭표 보강 등) 이 두 파일은 바꾸지 않는다.
 """
@@ -51,7 +53,7 @@ import json
 import re
 import shutil
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 from statistics import mean
@@ -73,6 +75,7 @@ from core.normalize import (  # noqa: E402
     squash,
 )
 from core.prompt import DEFAULT_PROMPT, PROMPTS, prompt_sha256, prompt_subdir, recorded_prompt_version  # noqa: E402
+from core.repair import REPAIRS, repair_output  # noqa: E402
 from core.schema import check_schema, extract_json  # noqa: E402
 from eval.seal import require_sealed  # noqa: E402
 
@@ -95,11 +98,22 @@ FEWSHOT_JSON = ROOT / "eval" / "fewshot.json"
 TEXT_DIR = ROOT / "data" / "text"
 LOG_FILE = "_log.jsonl"  # eval/infer.py가 쓰는 문서별 시간·토큰 기록
 DETAIL_FILE = "_score_detail.jsonl"  # *.json이 아닌 이름(검사기가 폴더의 *.json을 모두 검사함)
+
+
+def detail_file(repair=None):
+    """채점 상세 파일 이름. 출력 보정(--repair)을 적용한 채점은 보정 전 상세를 덮어쓰지 않게 따로 둔다."""
+    return DETAIL_FILE if not repair else f"_score_detail_repair_{repair}.jsonl"
+
+
+def condition_label(condition, repair=None):
+    """점수 기록의 condition 이름. 보정을 적용하면 {조건}+repair_{버전}(보정 전 행과 나란히 남음)."""
+    return condition if not repair else f"{condition}+repair_{repair}"
 UNKNOWN_FILE = "_unknown_hazard_classes.txt"  # test 전용: 별칭표 밖 분류명(화면에 내지 않음)
 FIRST_FILE = "_score_first.jsonl"  # test 전용: 최초 채점 메타 + 지표(덮어쓰지 않음)
 FIRST_DETAIL_FILE = "_score_detail_first.jsonl"
 TEST_CONDITIONS = ("base_zs", "base_fs", "qlora_final")  # eval/infer.py와 같음(plan 5절)
 # 채점 결과를 좌우하는 파일 — 최초 채점 기록에 해시를 남긴다(단계 7 고정값과 대조용)
+REPAIR_PY = ROOT / "core" / "repair.py"
 SCORER_FILES = (ROOT / "eval" / "score.py", ROOT / "core" / "normalize.py", ROOT / "core" / "schema.py")
 ALIAS_CSV = ROOT / "eval" / "hazard_class_alias.csv"
 H_CODE = re.compile(r"H\d{3}")
@@ -454,9 +468,11 @@ def read_subset_csv(path):
 
 
 def score_docs(doc_ids, subset_of, gold_dir, pred_dir, text_dir, self_check=False, include_non_ghs=False,
-               quiet=False):
+               quiet=False, repair=None):
     """문서 목록 전체를 채점 → (subset별 Acc, 별칭표 밖 분류명, 문서별 상세).
     목록의 모든 문서가 분모에 들어간다. 출력 파일이 없거나 파싱에 실패한 문서는 빈 예측으로 채점한다.
+    repair: core/repair.py 보정 버전. 주면 파싱한 출력을 보정한 뒤 스키마 검사 · 채점한다(출력 파일은 그대로).
+    파싱 실패 출력은 보정하지 않는다(실패로 집계).
     quiet(test): 문서 ID · 정답 내용을 화면에 내지 않는다(상세 파일에만 남김)."""
     accs = defaultdict(Acc)
     unknown = defaultdict(set)
@@ -492,17 +508,21 @@ def score_docs(doc_ids, subset_of, gold_dir, pred_dir, text_dir, self_check=Fals
             acc.out_tok.append(rec["output_tokens"])
             acc.hit_max += bool(rec.get("hit_max_new_tokens"))
 
+        tp_ = Path(text_dir) / f"{doc_id}.txt"
+        source = tp_.read_text(encoding="utf-8") if tp_.exists() else None
         if pred is None:
             d["parse_error"] = err
             pred = {}
         else:
             acc.parsed += 1
+            if repair and not self_check:
+                pred, used = repair_output(pred, source, repair)
+                if used:
+                    d["repair"] = dict(Counter(used))
             s_ok, s_err = check_schema(pred)
             acc.schema_ok += s_ok
             if not s_ok:
                 d["schema_errors"] = s_err[:10]
-        tp_ = Path(text_dir) / f"{doc_id}.txt"
-        source = tp_.read_text(encoding="utf-8") if tp_.exists() else None
         d.update(score_doc(gold, pred, acc, include_non_ghs, unknown, source))
         d["exact"], d["exact_ext"] = doc_exact(d, pred)
         acc.exact += d["exact"]
@@ -536,12 +556,16 @@ def check_prompt_version(pred_dir, version):
         sys.exit(f"[거부] {pred_dir}를 만든 뒤 프롬프트 {version}의 문구가 바뀌었다. 새 버전으로 다시 돌릴 것")
 
 
+def experiment_path(args):
+    return Path(getattr(args, "experiment", None) or EXPERIMENT_JSON)
+
+
 def gate_test(args, pred_dir):
     """test 채점 전 확인. 통과하기 전에는 정답 폴더를 열지 않는다. → 채점할 doc_id 목록"""
     if not args.allow_test:
         sys.exit("[거부] test 채점은 --allow-test가 있어야 한다(비교군 생성이 끝난 뒤)")
-    if not EXPERIMENT_JSON.exists():
-        sys.exit("[거부] eval/experiment.json(실험 고정)이 없다. 단계 7 뒤에만 test를 채점한다")
+    if not experiment_path(args).exists():
+        sys.exit(f"[거부] {experiment_path(args).name}(실험 고정)이 없다. 실험을 고정한 뒤에만 test를 채점한다")
     if args.self_check:
         sys.exit("[거부] test에는 self-check를 돌리지 않는다(봉인된 정답을 여는 일이라서). 채점기 점검은 val로")
     if args.no_write:
@@ -554,7 +578,7 @@ def gate_test(args, pred_dir):
             sys.exit(f"[거부] test는 저장소 밖 --{name.replace('_', '-')}가 필요하다"
                      "(정답 · 서식 목록 · 텍스트는 test 담당이 보관, 출력 · 채점 상세도 저장소 밖에 둠)")
     for kind, path in (("label", args.label_dir), ("text", args.text_dir), ("subset", args.subset_csv)):
-        require_sealed(kind, path)  # 봉인한 정답 · 텍스트 · 서식 목록으로만 채점(파일 해시만 보고, 정답은 아직 안 연다)
+        require_sealed(kind, path, args.manifest)  # 봉인한 정답 · 텍스트 · 서식 목록으로만 채점(파일 해시만 보고, 정답은 아직 안 연다)
     subset_of = read_subset_csv(args.subset_csv)
     log = read_log(pred_dir)
     missing = [d for d in subset_of if not (pred_dir / f"{d}.json").exists() and not log.get(d, {}).get("skipped")]
@@ -581,9 +605,21 @@ def main(argv=None):
                          "report/scores_prompt_<버전>.csv에 쓴다")
     ap.add_argument("--scores-csv", help="점수 기록 파일(기본: --prompt에 따라 report/scores.csv 또는 "
                                          "report/scores_prompt_<버전>.csv). 본 비교군이 아닌 결과를 따로 둘 때")
+    ap.add_argument("--experiment", help="test 실험 고정 파일(기본 eval/experiment.json = 팀 test)")
+    ap.add_argument("--manifest", help="test 봉인 기록(기본 report/test_manifest.csv = 팀 test)")
+    ap.add_argument("--repair", choices=sorted(REPAIRS),
+                    help="출력 보정(core/repair.py) 버전. 점수는 {조건}+repair_{버전} 행, 상세는 따로 둔다. test는 아직 받지 않음")
     args = ap.parse_args(argv)
-    if args.scores_csv and args.split == "test":
-        ap.error("--scores-csv는 test에 쓰지 않는다(test 점수는 기본 경로 · 최초 채점 기록으로 남긴다)")
+    if args.repair and args.split == "test":
+        ap.error("--repair는 test에 쓰지 않는다(확인용 문서는 사전 등록 뒤 별도 절차로)")
+    other_set = args.split == "test" and bool(args.experiment)  # 팀 test가 아닌 test 세트
+    if args.scores_csv and args.split == "test" and not (other_set and outside_repo(args.scores_csv)):
+        ap.error("--scores-csv는 팀 test에 쓰지 않는다(test 점수는 기본 경로 · 최초 채점 기록으로 남긴다). "
+                 "다른 test 세트(--experiment)는 저장소 밖 경로만 받는다")
+    if (args.experiment or args.manifest) and args.split != "test":
+        ap.error("--experiment · --manifest는 test 전용이다")
+    if other_set and not args.manifest:
+        ap.error("다른 test 세트(--experiment)는 그 세트의 봉인 --manifest도 함께 준다")
 
     if not args.self_check and not args.condition:
         ap.error("--condition이 필요함(--self-check일 때만 생략 가능)")
@@ -594,6 +630,8 @@ def main(argv=None):
     pred_dir = (Path(args.out_root or OUTPUT_ROOT) / prompt_subdir(args.prompt) / (args.condition or "_self_check")
                 / args.split)
     scores_csv = Path(args.scores_csv) if args.scores_csv else scores_csv_for(args.prompt)
+    if other_set and not args.scores_csv:  # gate_test가 저장소 밖 --out-root를 확인한다
+        scores_csv = Path(args.out_root or OUTPUT_ROOT) / "_scores.csv"
     if not args.self_check:
         check_prompt_version(pred_dir, args.prompt)
 
@@ -613,13 +651,13 @@ def main(argv=None):
         sys.exit(f"{args.split} 문서가 0건")
 
     accs, unknown, details = score_docs(doc_ids, subset_of, gold_dir, pred_dir, args.text_dir,
-                                        args.self_check, args.include_non_ghs, quiet=is_test)
+                                        args.self_check, args.include_non_ghs, quiet=is_test, repair=args.repair)
     subsets = sorted(accs)
     rows = [(subset, m, v) for subset in subsets for m, v in accs[subset].rows()]
 
     # 화면 출력: 지표 × subset 표
     table = {s: dict(accs[s].rows()) for s in subsets}
-    print(f"\n[{args.condition or 'self-check'} / {args.split}]  " + "  ".join(f"{s}={accs[s].n}건" for s in subsets))
+    print(f"\n[{condition_label(args.condition, args.repair) if args.condition else 'self-check'} / {args.split}]  " + "  ".join(f"{s}={accs[s].n}건" for s in subsets))
     print(f"{'metric':<24}" + "".join(f"{s:>10}" for s in subsets))
     for metric in table[subsets[0]]:
         print(f"{metric:<24}" + "".join(f"{fmt(table[s][metric]):>10}" for s in subsets))
@@ -639,10 +677,11 @@ def main(argv=None):
     if not args.no_write:
         if args.split != "train":  # 진단 점수는 보고용 scores.csv와 섞지 않는다
             scores_csv.parent.mkdir(parents=True, exist_ok=True)
-            upsert_scores(args.condition, args.split, rows, scores_csv)
-        detail_path = pred_dir / DETAIL_FILE
+            upsert_scores(condition_label(args.condition, args.repair), args.split, rows, scores_csv)
+        detail_path = pred_dir / detail_file(args.repair)
         with open(detail_path, "w", encoding="utf-8") as f:
-            f.write(json.dumps({"include_non_ghs": args.include_non_ghs,
+            f.write(json.dumps({"include_non_ghs": args.include_non_ghs, "repair": args.repair,
+                                "repair_sha256": sha256_files([REPAIR_PY]) if args.repair else None,
                                 "unknown_hazard_classes": sorted(unknown)}, ensure_ascii=False) + "\n")
             for d in details.values():
                 f.write(json.dumps(d, ensure_ascii=False, default=list) + "\n")
@@ -678,7 +717,8 @@ def write_test_extras(args, pred_dir, rows, unknown_lines, detail_path):
         "split": args.split,
         "scored_at": datetime.now().isoformat(timespec="seconds"),
         "include_non_ghs": args.include_non_ghs,
-        "experiment_sha256": sha256_files([EXPERIMENT_JSON]),
+        "experiment_sha256": sha256_files([experiment_path(args)]),
+        "manifest_sha256": sha256_files([args.manifest]) if args.manifest else None,
         "scorer_sha256": sha256_files(SCORER_FILES),
         "alias_sha256": sha256_files([ALIAS_CSV]),
     }

@@ -29,6 +29,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.rules.engine import run_rules  # noqa: E402
+from core.repair import repair_output  # noqa: E402
 from core.schema import extract_json  # noqa: E402
 
 CONDITIONS = ("base_zs", "base_fs", "qlora_r1", "qlora_r2", "qlora_r3", "qlora_final")
@@ -50,6 +51,9 @@ REQUIRED_LISTS = ("ingredients", "ghs_classification", "hazard_statements")
 FORMAT_CHECKS = {"schema", "cas", "hcode", "empty_value"}          # 검토 필요 · FORMAT_ERROR
 CONSISTENCY_CHECKS = {"ghs_signal_hcode_consistency", "phrase_to_hcode"}  # 검토 필요 · INCONSISTENT
 SOURCE_CHECKS = {"not_found", "content_sum"}                       # 원문 확인 필요
+# source_codes 검사: 원문에 있는 CAS · H코드가 출력에 없음 → 검토 필요 · NOT_FOUND(plan 8절 누락 재판정),
+# 출력 H코드가 원문에 없음(HCODE_NOT_IN_SOURCE) → 원문 확인 필요
+MISSING_CODES = {"CAS_IN_SOURCE_MISSING", "HCODE_IN_SOURCE_MISSING"}
 _TOP_FIELD = re.compile(r"^\$\.([a-z_]+)")
 
 
@@ -114,10 +118,15 @@ def field_rule_results(label: dict, source_text: Optional[str], doc_id: str,
     for field in CORE_FIELDS:
         found = per[field]
         checks = {f["check"] for f in found}
+        codes = {f["code"] for f in found}
+        if "source_codes" in checks and not codes & MISSING_CODES:
+            checks = (checks - {"source_codes"}) | {"not_found"}
         if checks & FORMAT_CHECKS:
             status, reason = "REVIEW_REQUIRED", "FORMAT_ERROR"
         elif checks & CONSISTENCY_CHECKS:
             status, reason = "REVIEW_REQUIRED", "INCONSISTENT"
+        elif codes & MISSING_CODES:
+            status, reason = "REVIEW_REQUIRED", "NOT_FOUND"
         elif checks & SOURCE_CHECKS:
             status, reason = "SOURCE_CHECK_REQUIRED", None
         else:
@@ -178,6 +187,7 @@ def build_documents(root: Path = ROOT) -> dict:
                 continue
             text_path = root / "data" / "text" / f"{doc_id}.txt"
             text = text_path.read_text(encoding="utf-8") if text_path.exists() else None
+            obj = repair_output(obj, text)[0]  # 서빙(app/main.ingest)과 같은 출력 보정
             n += 1
             when = _fmt_time(rec.get("created_at"))
             source_file = sources.get(doc_id, {}).get("source_file")

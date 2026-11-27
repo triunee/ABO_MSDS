@@ -1,0 +1,7 @@
+{"product_name":{"value":"HI 425, HI 425E, HI 425EH, HI 425ESH, HI 425EP, HI 425ER, HI 425TV, HI EF425TV, HI 425TVL, HI 450PG, HI 450PG E, HI 450W, HI 470R, HI 490FB, MIB IT, MIB 237","source_status":"기재"},
+"recommended_use":{"value":"48 - 기타","source_status":"기재"},
+"use_restrictions":{"value":"자료없음","source_status":"기재"},
+"supplier":{"company_name":"금호석유화학(주) 울산수지공장","address":"울산광역시 남구 처용로 260-257(성암동)","emergency_phone":"052-279-8852"},
+"ingredients":[{"chemical_name":"STYRENE/BUTADIENE COPOLYMER","cas_number":"9003-55-8","ke_number":"KE-13258","content":"95 – 100","is_substitute_data":false},{"chemical_name":"White mineral oil (petroleum)","cas_number":"8042-47-5","ke_number":"KE-35412","content":"0 – 5","is_substitute_data":false}],
+"ghs_classification":[],"signal_word":{"value":null,"source_status":"해당없음"},
+"hazard_statements":[],"list_status":{"ingredients":"기재","ghs_classification":"해당없음","hazard_statements":"해당없음"}}
